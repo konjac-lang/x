@@ -1,7 +1,8 @@
 module X
   module Value
     # Represents a dynamically-typed value in the virtual machine with support for primitive types and extensible custom types
-    class Context
+    @[Packed]
+    struct Context
       getter primitive_type : PrimitiveType
       getter pointer : Pointer(Void)
       getter custom_type : ::String?

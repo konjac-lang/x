@@ -1,50 +1,40 @@
 require "../src/x"
 
-Log.setup(:debug)
+# Log.setup(:debug)
 
-engine = X::Engine::Context.new
+engine = X::EngineContext.new
 
 engine.register_built_in_function("IO", "printLine", 1) do |engine, process, arguments|
-  puts arguments[0].to_s
-  X::Value::Context.null
+  puts arguments.first.to_s
+  X::ValueContext.null
+end
+
+engine.register_built_in_function("String", "concatenate", 2) do |engine, process, arguments|
+  X::ValueContext.new(arguments.last.to_s + arguments.first.to_s)
 end
 
 # Process 1: Receiver - waits for messages and prints them
 receiver = engine.create_process(
   instructions: [
     # Register this process as "receiver"
-    X::Instruction::Operation.new(X::Instruction::Code::PROCESS_SELF),
-    X::Instruction::Operation.new(X::Instruction::Code::PROCESS_REGISTER, X::Value::Context.new("receiver")),
+    X::Operation.new(X::Code::PROCESS_SELF),
+    X::Operation.new(X::Code::PROCESS_REGISTER, X::ValueContext.new("receiver")),
 
     # Wait for and print first message
-    X::Instruction::Operation.new(X::Instruction::Code::MESSAGE_RECEIVE),
-    X::Instruction::Operation.new(
-      X::Instruction::Code::CONTROL_CALL_BUILT_IN_FUNCTION,
-      X::Value::Context.new(
-        [
-          X::Value::Context.new("IO"),
-          X::Value::Context.new("printLine"),
-          X::Value::Context.new(1_i64),
-        ]
-      )
-    ),
+    X::Operation.new(X::Code::MESSAGE_RECEIVE),
+    X::Operation.new(X::Code::PUSH_STRING, X::ValueContext.new("First message: ")),
+    X::Operation.new(X::Code::CONTROL_CALL_BUILT_IN_FUNCTION, X::ValueContext.new([X::ValueContext.new("String"), X::ValueContext.new("concatenate"), X::ValueContext.new(2_i64)])),
+    X::Operation.new(X::Code::CONTROL_CALL_BUILT_IN_FUNCTION, X::ValueContext.new([X::ValueContext.new("IO"), X::ValueContext.new("printLine"), X::ValueContext.new(1_i64)])),
 
     # Wait for and print second message
-    X::Instruction::Operation.new(X::Instruction::Code::MESSAGE_RECEIVE),
-    X::Instruction::Operation.new(
-      X::Instruction::Code::CONTROL_CALL_BUILT_IN_FUNCTION,
-      X::Value::Context.new(
-        [
-          X::Value::Context.new("IO"),
-          X::Value::Context.new("printLine"),
-          X::Value::Context.new(1_i64),
-        ]
-      )
-    ),
+    X::Operation.new(X::Code::MESSAGE_RECEIVE),
+    X::Operation.new(X::Code::PUSH_STRING, X::ValueContext.new("Second message: ")),
+    X::Operation.new(X::Code::CONTROL_CALL_BUILT_IN_FUNCTION, X::ValueContext.new([X::ValueContext.new("String"), X::ValueContext.new("concatenate"), X::ValueContext.new(2_i64)])),
+    X::Operation.new(X::Code::CONTROL_CALL_BUILT_IN_FUNCTION, X::ValueContext.new([X::ValueContext.new("IO"), X::ValueContext.new("printLine"), X::ValueContext.new(1_i64)])),
 
     # Exit normally
-    X::Instruction::Operation.new(X::Instruction::Code::PUSH_STRING, X::Value::Context.new("normal")),
-    X::Instruction::Operation.new(X::Instruction::Code::PROCESS_EXIT),
+    X::Operation.new(X::Code::PUSH_STRING, X::ValueContext.new("normal")),
+    X::Operation.new(X::Code::PROCESS_EXIT),
   ]
 )
 
@@ -52,34 +42,26 @@ receiver = engine.create_process(
 sender = engine.create_process(
   instructions: [
     # Yield to let receiver register first
-    X::Instruction::Operation.new(X::Instruction::Code::PROCESS_YIELD),
+    X::Operation.new(X::Code::PROCESS_YIELD),
+    X::Operation.new(X::Code::PROCESS_YIELD),
 
     # Send first message to "receiver"
-    X::Instruction::Operation.new(X::Instruction::Code::PUSH_STRING, X::Value::Context.new("receiver")),
-    X::Instruction::Operation.new(X::Instruction::Code::PUSH_CUSTOM, X::Value::Context.new({"hello" => "world"})),
-    X::Instruction::Operation.new(X::Instruction::Code::MESSAGE_SEND),
+    X::Operation.new(X::Code::PUSH_STRING, X::ValueContext.new("receiver")),
+    X::Operation.new(X::Code::PUSH_CUSTOM, X::ValueContext.new("Hello, World!")),
+    X::Operation.new(X::Code::MESSAGE_SEND),
 
     # Send second message
-    X::Instruction::Operation.new(X::Instruction::Code::PUSH_STRING, X::Value::Context.new("receiver")),
-    X::Instruction::Operation.new(X::Instruction::Code::PUSH_STRING, X::Value::Context.new("Hello, World!")),
-    X::Instruction::Operation.new(X::Instruction::Code::MESSAGE_SEND),
+    X::Operation.new(X::Code::PUSH_STRING, X::ValueContext.new("receiver")),
+    X::Operation.new(X::Code::PUSH_STRING, X::ValueContext.new("Bye, World!")),
+    X::Operation.new(X::Code::MESSAGE_SEND),
 
     # Print confirmation
-    X::Instruction::Operation.new(X::Instruction::Code::PUSH_STRING, X::Value::Context.new("Sender: Messages sent!")),
-    X::Instruction::Operation.new(
-      X::Instruction::Code::CONTROL_CALL_BUILT_IN_FUNCTION,
-      X::Value::Context.new(
-        [
-          X::Value::Context.new("IO"),
-          X::Value::Context.new("printLine"),
-          X::Value::Context.new(1_i64),
-        ]
-      )
-    ),
+    X::Operation.new(X::Code::PUSH_STRING, X::ValueContext.new("Sender: Messages sent!")),
+    X::Operation.new(X::Code::CONTROL_CALL_BUILT_IN_FUNCTION, X::ValueContext.new([X::ValueContext.new("IO"), X::ValueContext.new("printLine"), X::ValueContext.new(1_i64)])),
 
     # Exit normally
-    X::Instruction::Operation.new(X::Instruction::Code::PUSH_STRING, X::Value::Context.new("normal")),
-    X::Instruction::Operation.new(X::Instruction::Code::PROCESS_EXIT),
+    X::Operation.new(X::Code::PUSH_STRING, X::ValueContext.new("normal")),
+    X::Operation.new(X::Code::PROCESS_EXIT),
   ]
 )
 
@@ -91,4 +73,4 @@ engine.scheduler.enqueue(sender)
 
 engine.run
 
-sleep 1.seconds
+# sleep 1.seconds
