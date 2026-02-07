@@ -235,6 +235,9 @@ module X
         process.call_stack.push(process.counter)
         process.call_stack.push(process.frame_pointer.to_u64)
 
+        pp "CALL Counter: #{process.counter}"
+        pp "CALL Frame Pointer: #{process.frame_pointer}"
+
         # Set up new frame
         process.frame_pointer = process.locals.size
 
@@ -361,14 +364,14 @@ module X
           return Value::Context.null
         end
 
-        # Restore frame pointer and return address
-        process.frame_pointer = process.call_stack.pop.to_i32
-        return_address = process.call_stack.pop
-
-        # Trim locals back to frame
+        # Trim current frame's locals first
         while process.locals.size > process.frame_pointer
           process.locals.pop
         end
+
+        # Then restore caller's frame pointer and return address
+        process.frame_pointer = process.call_stack.pop.to_i32
+        return_address = process.call_stack.pop
 
         # Restore saved instructions if we did indirect call
         if process.saved_instructions_stack && !process.saved_instructions_stack.not_nil!.empty?
@@ -398,14 +401,17 @@ module X
           return return_value
         end
 
-        # Restore frame pointer and return address
-        process.frame_pointer = process.call_stack.pop.to_i32
-        return_address = process.call_stack.pop
-
-        # Trim locals back to frame
+        # Trim current frame's locals first
         while process.locals.size > process.frame_pointer
           process.locals.pop
         end
+
+        # Then restore caller's frame pointer and return address
+        raw_frame_pointer = process.call_stack.pop
+        return_address = process.call_stack.pop
+
+        process.frame_pointer = raw_frame_pointer.to_i32
+        process.counter = return_address
 
         # Restore saved instructions if we did indirect call
         if process.saved_instructions_stack && !process.saved_instructions_stack.not_nil!.empty?
@@ -414,7 +420,6 @@ module X
         end
 
         process.stack.push(return_value)
-        process.counter = return_address
 
         return_value
       end

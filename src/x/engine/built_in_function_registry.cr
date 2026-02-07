@@ -24,10 +24,16 @@ module X
       def call(engine : Engine::Context, process : Process::Context,
                module_name : String, function_name : String, arguments : Array(Value::Context)) : Value::Context
         key = {module_name, function_name, arguments.size}
-        if built_in_function = @table[key]?
-          Log.debug { "Process <#{process.address}>: #{module_name}.#{function_name}/#{arguments.size} args=#{arguments.map(&.inspect)}" }
+        built_in_function = @table[key]?
+
+        # Try wildcard arity (-1)
+        unless built_in_function
+          wildcard_key = {module_name, function_name, -1}
+          built_in_function = @table[wildcard_key]?
+        end
+
+        if built_in_function
           result = built_in_function.call(engine, process, arguments)
-          Log.debug { "Process <#{process.address}>: #{module_name}.#{function_name}/#{arguments.size} => #{result.inspect}" }
           result
         else
           Log.error { "Process <#{process.address}>: Undefined #{module_name}.#{function_name}/#{arguments.size}" }
