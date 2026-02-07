@@ -235,9 +235,6 @@ module X
         process.call_stack.push(process.counter)
         process.call_stack.push(process.frame_pointer.to_u64)
 
-        pp "CALL Counter: #{process.counter}"
-        pp "CALL Frame Pointer: #{process.frame_pointer}"
-
         # Set up new frame
         process.frame_pointer = process.locals.size
 
