@@ -233,13 +233,10 @@ module X
 
         # Save return address and frame pointer
         process.call_stack.push(process.counter)
+        process.call_stack.push(process.frame_pointer.to_u64)
 
         # Set up new frame
-        saved_frame_pointer = process.frame_pointer
         process.frame_pointer = process.locals.size
-
-        # Store saved frame pointer for restoration on return
-        # (Could also push to call_stack or a separate frame stack)
 
         # Jump to subroutine
         process.counter = subroutine.start_address
@@ -269,8 +266,9 @@ module X
           raise Exceptions::UndefinedSubroutine.new("CONTROL_CALL_DYNAMIC subroutine not found: '#{subroutine_name}'")
         end
 
-        # Save return address
+        # Save return address and frame pointer
         process.call_stack.push(process.counter)
+        process.call_stack.push(process.frame_pointer.to_u64)
 
         # Set up new frame
         process.frame_pointer = process.locals.size
@@ -359,13 +357,18 @@ module X
         process.counter += 1
 
         if process.call_stack.empty?
-          # No caller - terminate process
           process.state = Process::State::DEAD
           return Value::Context.null
         end
 
-        # Restore return address
+        # Restore frame pointer and return address
+        process.frame_pointer = process.call_stack.pop.to_i32
         return_address = process.call_stack.pop
+
+        # Trim locals back to frame
+        while process.locals.size > process.frame_pointer
+          process.locals.pop
+        end
 
         # Restore saved instructions if we did indirect call
         if process.saved_instructions_stack && !process.saved_instructions_stack.not_nil!.empty?
@@ -373,8 +376,6 @@ module X
           process.current_closure = nil
         end
 
-        # Restore frame (truncate locals to frame pointer)
-        # Note: This is simplified - a full implementation would restore the previous frame pointer
         process.counter = return_address
 
         Value::Context.null
@@ -392,14 +393,19 @@ module X
         return_value = process.stack.pop
 
         if process.call_stack.empty?
-          # No caller - terminate process, but keep return value accessible
           process.state = Process::State::DEAD
           process.stack.push(return_value)
           return return_value
         end
 
-        # Restore return address
+        # Restore frame pointer and return address
+        process.frame_pointer = process.call_stack.pop.to_i32
         return_address = process.call_stack.pop
+
+        # Trim locals back to frame
+        while process.locals.size > process.frame_pointer
+          process.locals.pop
+        end
 
         # Restore saved instructions if we did indirect call
         if process.saved_instructions_stack && !process.saved_instructions_stack.not_nil!.empty?
@@ -407,7 +413,6 @@ module X
           process.current_closure = nil
         end
 
-        # Push return value for caller
         process.stack.push(return_value)
         process.counter = return_address
 

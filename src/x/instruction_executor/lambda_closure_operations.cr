@@ -13,34 +13,47 @@ module X
 
         # Extract body instructions and capture names from operand
         unless instruction.value.lambda_create_tuple?
-          raise Exceptions::TypeMismatch.new("LAMBDA_CREATE requires a tuple operand (instructions, capture_names)")
+          raise Exceptions::TypeMismatch.new("LAMBDA_CREATE requires a tuple operand")
         end
 
         tuple = instruction.value.to_lambda_create_tuple
         body_instructions = tuple[0]
-        capture_names = tuple[1]
+        capture_indices = tuple[1]
 
-        # Build captured environment from current scope
-        captured_environment = Hash(String, Value::Context).new
+        # Capture values from parent frame by index into upvalues array
+        upvalues = Array(Value::Context).new
 
-        capture_names.each do |var_name|
-          # Try globals first
-          if val = process.globals[var_name]?
-            captured_environment[var_name] = val.clone
-            # Then try locals (would need to resolve by name - simplified here)
+        capture_indices.each do |name|
+          # Look up by name in the current locals
+          idx = process.locals.index { |_| false } # fallback
+          # Find the local by scanning the frame
+          local_idx = 0
+          found = false
+
+          process.locals.each_with_index do |val, i|
+            if i >= process.frame_pointer
+              if local_idx.to_s == name || name == local_idx.to_s
+                upvalues << val.clone
+                found = true
+                break
+              end
+              local_idx += 1
+            end
           end
+
+          upvalues << Value::Context.null unless found
         end
 
-        # Create the lambda
+        # Create lambda with upvalues
         lambda = Lambda::Context.new(
           instructions: body_instructions,
-          variables: [] of String, # Parameters defined separately or inferred
-          captured_environment: captured_environment
+          variables: [] of String,
+          captured_environment: Hash(String, Value::Context).new,
+          upvalues: upvalues
         )
 
         result = Value::Context.new(lambda)
         process.stack.push(result)
-
         result
       end
 
@@ -140,7 +153,6 @@ module X
 
         if lambda.is_a?(Lambda::Partial)
           partial = lambda.as(Lambda::Partial)
-          # Prepend bound arguments
           actual_arguments = partial.bound_arguments + arguments
           actual_lambda = partial.original
         end
@@ -158,27 +170,14 @@ module X
         process.counter = 0_u64
         process.frame_pointer = process.locals.size
 
-        # Bind arguments to local variables
-        actual_lambda.variables.each_with_index do |_param_name, index|
-          if index < actual_arguments.size
-            process.locals << actual_arguments[index]
-          else
-            process.locals << Value::Context.null # Default to null
-          end
+        # Push UPVALUES as locals first (they become local 0, 1, 2...)
+        actual_lambda.upvalues.each do |upvalue|
+          process.locals << upvalue
         end
 
-        # Also add extra arguments beyond declared parameters
-        if actual_arguments.size > actual_lambda.variables.size
-          (actual_lambda.variables.size...actual_arguments.size).each do |i|
-            process.locals << actual_arguments[i]
-          end
-        end
-
-        # Set up captured environment as globals (temporary)
-        saved_globals = Hash(String, Value::Context).new
-        actual_lambda.captured_environment.each do |name, value|
-          saved_globals[name] = process.globals[name]? || Value::Context.null
-          process.globals[name] = value
+        # Then push ARGUMENTS as locals (they come after upvalues)
+        actual_arguments.each do |arg|
+          process.locals << arg
         end
 
         # Execute lambda instructions
@@ -204,16 +203,7 @@ module X
           result = process.stack.pop
         end
 
-        # Restore captured globals
-        saved_globals.each do |name, value|
-          if value.null?
-            process.globals.delete(name)
-          else
-            process.globals[name] = value
-          end
-        end
-
-        # Restore execution state
+        # Restore execution state (no need to restore globals anymore!)
         process.instructions = saved_instructions
         process.counter = saved_counter
         process.locals = saved_locals

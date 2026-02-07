@@ -1,6 +1,6 @@
 require "../src/x"
 
-# Log.setup(:debug)
+Log.setup(:debug)
 
 engine = X::EngineContext.new
 
@@ -73,4 +73,4 @@ engine.scheduler.enqueue(sender)
 
 engine.run
 
-# sleep 1.seconds
+sleep 1.seconds

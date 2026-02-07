@@ -51,7 +51,7 @@ module X
 
         begin
           case instruction.code
-          # STACK OPERATIONS
+            # STACK OPERATIONS
           when Instruction::Code::STACK_POP              then execute_stack_pop(process)
           when Instruction::Code::STACK_DUPLICATE        then execute_stack_duplicate(process)
           when Instruction::Code::STACK_DUPLICATE_SECOND then execute_stack_duplicate_second(process)
