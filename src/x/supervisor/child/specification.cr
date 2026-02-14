@@ -5,6 +5,7 @@ module X
       class Specification
         property id : String
         property instructions : Array(Instruction::Operation)
+        property upvalues : Array(Value::Context)
         property subroutines : Hash(String, Instruction::Subroutine)
         property globals : Hash(String, Value::Context)
         property type : Type
@@ -17,6 +18,7 @@ module X
         def initialize(
           @id : String,
           @instructions : Array(Instruction::Operation) = [] of Instruction::Operation,
+          @upvalues : Array(Value::Context) = [] of Value::Context,
           @subroutines : Hash(String, Instruction::Subroutine) = {} of String => Instruction::Subroutine,
           @globals : Hash(String, Value::Context) = {} of String => Value::Context,
           @type : Type = Type::Worker,
@@ -32,6 +34,7 @@ module X
           Specification.new(
             id: @id,
             instructions: @instructions.map(&.clone),
+            upvalues: @upvalues.map(&.clone),
             subroutines: @subroutines.dup,
             globals: @globals.transform_values(&.clone),
             restart: @restart,

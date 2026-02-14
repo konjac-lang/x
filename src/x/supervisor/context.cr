@@ -51,6 +51,11 @@ module X
           instructions: specification.instructions.map(&.clone)
         )
 
+        # Pre-load captured upvalues into the process locals
+        specification.upvalues.each do |upvalue|
+          process.locals << upvalue.clone
+        end
+
         # Copy subroutines and globals
         specification.subroutines.each { |name, subroutine| process.subroutines[name] = subroutine }
         specification.globals.each { |name, value| process.globals[name] = value.clone }
@@ -60,6 +65,9 @@ module X
 
         # Register the process
         @engine.processes << process
+
+        # Schedule the process
+        @engine.scheduler.enqueue(process)
 
         process.address
       rescue ex

@@ -21,27 +21,30 @@ module X
         capture_indices = tuple[1]
 
         # Capture values from parent frame by index into upvalues array
-        upvalues = Array(Value::Context).new
-
-        capture_indices.each do |name|
-          # Look up by name in the current locals
-          idx = process.locals.index { |_| false } # fallback
-          # Find the local by scanning the frame
-          local_idx = 0
-          found = false
-
-          process.locals.each_with_index do |val, i|
-            if i >= process.frame_pointer
-              if local_idx.to_s == name || name == local_idx.to_s
-                upvalues << val.clone
-                found = true
-                break
+        upvalues = capture_indices.map do |specification|
+          parts = specification.split(":")
+          if parts.size == 2
+            index = parts[1].to_i32
+            local_index = process.frame_pointer + index
+            if local_index >= 0 && local_index < process.locals.size
+              process.locals[local_index].clone
+            else
+              Value::Context.null
+            end
+          else
+            # Fallback: try as raw index
+            begin
+              index = specification.to_i32
+              local_index = process.frame_pointer + index
+              if local_index >= 0 && local_index < process.locals.size
+                process.locals[local_index].clone
+              else
+                Value::Context.null
               end
-              local_idx += 1
+            rescue
+              Value::Context.null
             end
           end
-
-          upvalues << Value::Context.null unless found
         end
 
         # Create lambda with upvalues
@@ -170,14 +173,16 @@ module X
         process.counter = 0_u64
         process.frame_pointer = process.locals.size
 
-        # Push UPVALUES as locals first (they become local 0, 1, 2...)
-        actual_lambda.upvalues.each do |upvalue|
-          process.locals << upvalue
-        end
-
-        # Then push ARGUMENTS as locals (they come after upvalues)
+        # The compiler allocates locals as: parameters first, then free variables.
+        # The lambda body uses VARIABLE_STORE_LOCAL to pop arguments into parameter slots,
+        # then references free variables by their local index.
+        # So we push: arguments first (parameters), then upvalues (captured free variables).
         actual_arguments.each do |arg|
           process.locals << arg
+        end
+
+        actual_lambda.upvalues.each do |upvalue|
+          process.locals << upvalue
         end
 
         # Execute lambda instructions
