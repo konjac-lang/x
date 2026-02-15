@@ -338,13 +338,24 @@ module X
         function_name = call_information[1].to_s
         arity = call_information[2].to_i64.to_i32
 
+        Log.debug { "Process <#{process.address}>: Calling #{module_name}.#{function_name}/#{arity}" }
+
         check_stack_size(process, arity, "CONTROL_CALL_BUILT_IN_FUNCTION")
 
         arguments = [] of Value::Context
         arity.times { arguments.unshift(process.stack.pop) }
 
+        saved_arguments = arguments.dup
+
         result = @engine.call_built_in_function(process, module_name, function_name, arguments)
-        process.stack.push(result)
+
+        if process.state == Process::State::WAITING
+          Log.debug { "Process <#{process.address}>: #{module_name}.#{function_name} suspended, restoring #{saved_arguments.size} args" }
+          saved_arguments.each { |arg| process.stack.push(arg) }
+        else
+          process.stack.push(result)
+        end
+
         result
       end
 
