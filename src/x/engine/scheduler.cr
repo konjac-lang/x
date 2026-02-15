@@ -126,7 +126,6 @@ module X
       while !@timed_wait_queue.empty? && @timed_wait_queue.first[0] <= now
         deadline, process = @timed_wait_queue.shift
 
-        process.stack.push(Value::Context.new(false)) # Timeout indicator
         process.state = Process::State::ALIVE
         process.waiting_for = nil
         process.waiting_since = nil
@@ -135,7 +134,7 @@ module X
         @run_queues[process.priority].push(process)
         expired << process
 
-        Log.debug { "Process <#{process.address}> receive timeout expired" }
+        Log.debug { "Process <#{process.address}> timeout expired" }
       end
 
       expired
