@@ -56,17 +56,23 @@ module X
           process.locals << upvalue.clone
         end
 
-        # Copy subroutines and globals
-        specification.subroutines.each { |name, subroutine| process.subroutines[name] = subroutine }
+        # Copy subroutines with remapped start addresses
+        specification.subroutines.each do |name, subroutine|
+          new_start = process.instructions.size.to_u64
+          subroutine.instructions.each { |inst| process.instructions << inst }
+          process.subroutines[name] = Instruction::Subroutine.new(
+            name: subroutine.name,
+            instructions: subroutine.instructions,
+            start_address: new_start
+          )
+        end
+
         specification.globals.each { |name, value| process.globals[name] = value.clone }
 
         # Link supervisor to child
         @engine.link_registry.link(@address, process.address)
 
-        # Register the process
         @engine.processes << process
-
-        # Schedule the process
         @engine.scheduler.enqueue(process)
 
         process.address
