@@ -408,7 +408,10 @@ module X
 
         loop do
           iterations += 1
-          break if iterations >= @configuration.iteration_limit
+
+          if @configuration.limit_iteration?
+            break if iterations >= @configuration.iteration_limit
+          end
 
           Log.debug { "Scheduler stats: #{scheduler.stats}" }
           perform_scheduler_checks

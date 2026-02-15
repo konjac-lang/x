@@ -10,6 +10,7 @@ module X
     property default_message_ttl : Time::Span = 30.seconds
     property default_receive_timeout : Time::Span = 5.seconds
     property mailbox_full_behavior : Symbol = :block # :block, :drop, :fail
+    property? limit_iteration : Bool = false
     property? auto_reactivate_processes : Bool = true
     property? enable_message_acknowledgments : Bool = false
     property message_cleanup_interval : Time::Span = 5.seconds
