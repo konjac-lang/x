@@ -12,11 +12,11 @@ module X
         process.counter += 1
 
         # Extract body instructions and capture names from operand
-        unless instruction.value.lambda_create_tuple?
+        unless instruction.value.lambda_definition?
           raise Exceptions::TypeMismatch.new("LAMBDA_CREATE requires a tuple operand")
         end
 
-        tuple = instruction.value.to_lambda_create_tuple
+        tuple = instruction.value.to_lambda_definition
         body_instructions = tuple[0]
         capture_indices = tuple[1]
 
