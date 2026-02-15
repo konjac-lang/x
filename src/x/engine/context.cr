@@ -281,6 +281,35 @@ module X
         @storage.store(dump)
 
         fault_handler.handle_exit(process, reason)
+
+        # Cleanup
+        process.stack.clear
+        process.locals.clear
+        process.mailbox.clear
+        @processes.delete(process)
+      end
+
+      private def handle_process_result(process : Process::Context)
+        if process.state.dead?
+          process.stack.clear
+          process.locals.clear
+          process.mailbox.clear
+          @processes.delete(process)
+          return
+        end
+
+        return unless process.state.alive?
+        return unless process.counter >= process.instructions.size
+
+        process.state = Process::State::DEAD
+        scheduler.mark_dead(process)
+        fault_handler.handle_exit(process, Process::Reason::Context.normal)
+
+        process.stack.clear
+        process.locals.clear
+        process.mailbox.clear
+
+        @processes.delete(process)
       end
 
       private def build_exception_value(exception : Exception, process : Process::Context) : Value::Context
@@ -471,15 +500,6 @@ module X
           instruction = process.instructions[process.counter]
           execute(process, instruction)
         end
-      end
-
-      private def handle_process_result(process : Process::Context)
-        return unless process.state.alive?
-        return unless process.counter >= process.instructions.size
-
-        process.state = Process::State::DEAD
-        scheduler.mark_dead(process)
-        fault_handler.handle_exit(process, Process::Reason::Context.normal)
       end
 
       # Private: Query Helpers
