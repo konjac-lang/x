@@ -122,6 +122,13 @@ module X
           @acknowledgments << acknowledgment
         end
       end
+
+      def clear
+        @mailbox_mutex.synchronize do
+          @messages.clear
+          @acknowledgments.clear
+        end
+      end
     end
   end
 end
