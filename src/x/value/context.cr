@@ -56,7 +56,6 @@ module X
       NUMERIC_MAX   = FLOAT
     end
 
-    @[Packed]
     struct Context
       # Primary storage
       # For immediates: the value itself, encoded in 64 bits.
@@ -71,6 +70,9 @@ module X
       # This is the only field that may cause an allocation on construction
       # of custom types (the string itself is usually a literal).
       @custom_type : ::String?
+
+      # GC-visible reference to heap object
+      @heap_reference : Pointer(Void)?
 
       # Class-level null singleton
       class_getter null : Context = Context.new(nil)
@@ -134,85 +136,98 @@ module X
 
       # Symbol — boxed (Crystal symbols cannot be reconstructed from ordinals)
       def initialize(object : Symbol)
-        @bits = Box.box(object).address
+        box = Box.box(object)
+
+        @bits = box.address
         @tag = Tag::SYMBOL
         @custom_type = nil
+        @heap_reference = box
       end
 
       def initialize(object : String)
-        @bits = Box.box(object).address
+        box = Box.box(object)
+
+        @bits = box.address
         @tag = Tag::STRING
         @custom_type = nil
+        @heap_reference = box
       end
 
       def initialize(object : Hash(::String, Context))
-        @bits = Box.box(object).address
+        box = Box.box(object)
+
+        @bits = box.address
         @tag = Tag::MAP
         @custom_type = nil
+        @heap_reference = box
       end
 
       def initialize(object : ::Array(Context))
-        @bits = Box.box(object).address
+        box = Box.box(object)
+
+        @bits = box.address
         @tag = Tag::ARRAY
         @custom_type = nil
+        @heap_reference = box
       end
 
       # Binary — copies the slice to ensure ownership
       def initialize(slice : Slice(UInt8))
         owned = Slice(UInt8).new(slice.size)
         owned.copy_from(slice)
-        @bits = Box.box(owned).address
+
+        box = Box.box(owned)
+
+        @bits = box.address
         @tag = Tag::BINARY
         @custom_type = nil
+        @heap_reference = box
       end
 
       def initialize(object : Lambda::Context)
-        @bits = Box.box(object).address
+        box = Box.box(object)
+
+        @bits = box.address
         @tag = Tag::LAMBDA
         @custom_type = nil
+        @heap_reference = box
       end
 
       def initialize(object : ::Array(Instruction::Operation))
-        @bits = Box.box(object).address
+        box = Box.box(object)
+
+        @bits = box.address
         @tag = Tag::INSTRUCTIONS
         @custom_type = nil
-      end
-
-      def initialize(object : Tuple(UInt64, Context))
-        @bits = Box.box(object).address
-        @tag = Tag::CUSTOM
-        @custom_type = "Tuple(UInt64, X::X::Value::Context)"
-      end
-
-      def initialize(object : Tuple(Context, Float64))
-        @bits = Box.box(object).address
-        @tag = Tag::CUSTOM
-        @custom_type = "Tuple(Context, Float64)"
-      end
-
-      def initialize(object : Tuple(UInt64, Context, Float64))
-        @bits = Box.box(object).address
-        @tag = Tag::CUSTOM
-        @custom_type = "Tuple(UInt64, Context, Float64)"
+        @heap_reference = box
       end
 
       def initialize(object : Tuple(::Array(Instruction::Operation), ::Array(::String)))
-        @bits = Box.box(object).address
+        box = Box.box(object)
+
+        @bits = box.address
         @tag = Tag::CUSTOM
-        @custom_type = "LambdaCreateTuple"
+        @custom_type = "LambdaDefinition"
+        @heap_reference = box
       end
 
       def initialize(object : Process::MonitorReference)
-        @bits = Box.box(object).address
+        box = Box.box(object)
+
+        @bits = box.address
         @tag = Tag::CUSTOM
         @custom_type = "MonitorReference"
+        @heap_reference = box
       end
 
       # Generic fallback for unknown custom types
       def initialize(object : Object)
-        @bits = Box.box(object).address
+        box = Box.box(object)
+
+        @bits = box.address
         @tag = Tag::CUSTOM
         @custom_type = object.class.to_s
+        @heap_reference = box
       end
 
       # Raw pointer reconstruction
@@ -320,8 +335,8 @@ module X
       end
 
       @[AlwaysInline]
-      def lambda_create_tuple? : Bool
-        @tag == Tag::CUSTOM && @custom_type == "LambdaCreateTuple"
+      def lambda_definition? : Bool
+        @tag == Tag::CUSTOM && @custom_type == "LambdaDefinition"
       end
 
       @[AlwaysInline]
@@ -451,33 +466,9 @@ module X
       end
 
       @[AlwaysInline]
-      def to_send_tuple : Tuple(UInt64, Context)
-        unless @custom_type == "Tuple(UInt64, X::X::Value::Context)"
-          raise Exceptions::Emulation.new("Cannot convert #{type} to Tuple(UInt64, Context)")
-        end
-        unbox(Tuple(UInt64, Context))
-      end
-
-      @[AlwaysInline]
-      def to_receive_timeout_tuple : Tuple(Context, Float64)
-        unless @custom_type == "Tuple(Context, Float64)"
-          raise Exceptions::Emulation.new("Cannot convert #{type} to Tuple(Context, Float64)")
-        end
-        unbox(Tuple(Context, Float64))
-      end
-
-      @[AlwaysInline]
-      def to_send_after_tuple : Tuple(UInt64, Context, Float64)
-        unless @custom_type == "Tuple(UInt64, Context, Float64)"
-          raise Exceptions::Emulation.new("Cannot convert #{type} to Tuple(UInt64, Context, Float64)")
-        end
-        unbox(Tuple(UInt64, Context, Float64))
-      end
-
-      @[AlwaysInline]
-      def to_lambda_create_tuple : Tuple(::Array(Instruction::Operation), ::Array(::String))
-        unless @custom_type == "LambdaCreateTuple"
-          raise Exceptions::Emulation.new("Cannot convert #{type} to LambdaCreateTuple")
+      def to_lambda_definition : Tuple(::Array(Instruction::Operation), ::Array(::String))
+        unless @custom_type == "LambdaDefinition"
+          raise Exceptions::Emulation.new("Cannot convert #{type} to LambdaDefinition")
         end
         unbox(Tuple(::Array(Instruction::Operation), ::Array(::String)))
       end
