@@ -6,7 +6,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Build Status](https://github.com/konjac-lang/x/actions/workflows/ci.yml/badge.svg)](https://github.com/konjac-lang/x/actions)
 
-This project combines a clean **stack-based bytecode interpreter** with **actor-model concurrency**, lightweight processes, message passing, supervision trees, and built-in fault tolerance -- all implemented in pure Crystal.
+This project combines a clean **stack-based bytecode interpreter** with **actor-model concurrency**, lightweight processes, message passing, supervision trees, and built-in fault tolerance - all implemented in pure Crystal.
 
 Inspired by Erlang's BEAM, but designed to be simple, hackable, and embeddable.
 
