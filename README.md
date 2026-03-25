@@ -67,7 +67,7 @@ shards build --release
 
 ## The XASM Language
 
-XASM is a human-readable assembly language for the X VM. Every line is a verb -- there are no implicit operations.
+XASM is a human-readable assembly language for the X VM. Every line is a verb - there are no implicit operations.
 
 ### Modules and Directives
 
@@ -126,7 +126,7 @@ Local variables are declared with `.local` and accessed with `load`/`store`:
 
 ### Control Flow
 
-Block-based control flow -- no manual jump offsets:
+Block-based control flow - no manual jump offsets:
 
 ```xasm
 ; If/else
@@ -258,7 +258,7 @@ push "MyApp.Config.v2"        ; file hint (resolved by module resolver)
 reload
 ```
 
-The new code is picked up by all processes on their next function call -- no restart required.
+The new code is picked up by all processes on their next function call - no restart required.
 
 ### Supervision Trees
 
@@ -697,10 +697,10 @@ shards run -- examples/dynamic/Dynamic.Main.xasm
 
 ## Why X?
 
-- **Learning** -- Understand how actor-model VMs work from the inside
-- **Embedding** -- Drop a concurrent runtime into your Crystal application
-- **Experimentation** -- Build DSLs, game scripting engines, or workflow systems
-- **Compiler target** -- XASM is a clean compilation target for higher-level languages
+- **Learning** - Understand how actor-model VMs work from the inside
+- **Embedding** - Drop a concurrent runtime into your Crystal application
+- **Experimentation** - Build DSLs, game scripting engines, or workflow systems
+- **Compiler target** - XASM is a clean compilation target for higher-level languages
 
 ## Contributing
 
