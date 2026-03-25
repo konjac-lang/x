@@ -701,6 +701,13 @@ module X
       # Stack Before: [... flag_name]
       # Stack After: [... value]
 
+      PROCESS_AWAIT
+      # Description: Block until a registered name exists
+      # Operand: String (registered name)
+      # Stack Before: [...]
+      # Stack After: [...]
+      # Side Effects: Sets process to WAITING until name is registered
+
       # Operations for inter-process communication.
 
       MESSAGE_SEND

@@ -203,7 +203,7 @@ module X
         fault_handler.start
         iterations = run_main_loop
         fault_handler.stop
-        Log.info { "VM completed after #{iterations} iterations" }
+        Log.debug { "VM completed after #{iterations} iterations" }
       end
 
       # Diagnostics & Inspection
@@ -479,6 +479,7 @@ module X
       private def perform_scheduler_checks
         deliver_delayed_messages
         process_reactivation_queue
+        check_await_conditions
         scheduler.check_timeouts
         scheduler.check_blocked
       end
@@ -487,6 +488,20 @@ module X
         while process = @reactivation_queue.shift?
           Log.debug { "Reactivating process <#{process.address}>" }
           scheduler.make_runnable(process)
+        end
+      end
+
+      private def check_await_conditions
+        @processes.each do |process|
+          next unless process.state == Process::State::WAITING
+          next unless waiting = process.waiting_for
+          next unless waiting.string?
+
+          name = waiting.to_s
+
+          if process_registry.lookup(name)
+            queue_process_for_reactivation(process)
+          end
         end
       end
 

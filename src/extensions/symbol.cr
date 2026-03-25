@@ -5,7 +5,7 @@ module X
       @@head : UInt64 = (:Symbol.unsafe_as(Pointer(Void)).address & 0xffffffff00000000_u64) + 0xFFFFFFFF
 
       def self.for(s : String)
-        i = @@map.index(s) || (raise X::X::Exceptions::Emulation.new("You've reached a dangerous amount of runtime symbols - good luck! (sadly Crystal doesn't support symbols and requires such hacks)") if @@map.size >= 0xFFFFFFFF; @@map << s; @@map.size - 1)
+        i = @@map.index(s) || (raise X::Exceptions::Emulation.new("You've reached a dangerous amount of runtime symbols - good luck! (sadly Crystal doesn't support symbols and requires such hacks)") if @@map.size >= 0xFFFFFFFF; @@map << s; @@map.size - 1)
         Pointer(Void).new(@@head - i).unsafe_as ::Symbol
       end
 

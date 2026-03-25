@@ -1,0 +1,144 @@
+.module Chat.Main
+
+.require "Chat.Logger"
+.require "Chat.Format"
+.require "Chat.Room"
+.require "Chat.User"
+.require "Chat.Watchdog"
+.require "Chat.Stats"
+
+.import IO.printLine/1
+.import String.concatenate/2
+.import Chat.Format.separator/1
+.import Chat.Format.systemMessage/1
+
+.process main
+  push 40
+  call Chat.Format.separator/1
+  call IO.printLine/1
+
+  push "X VM Chat System Demo"
+  call Chat.Format.systemMessage/1
+  call IO.printLine/1
+
+  push "6 modules, 7 processes, message passing"
+  call Chat.Format.systemMessage/1
+  call IO.printLine/1
+
+  push 40
+  call Chat.Format.separator/1
+  call IO.printLine/1
+
+  ; Wait for everyone to finish
+  await "room"
+  await "alice"
+  await "bob"
+  await "charlie"
+  await "watchdog"
+  await "stats"
+
+  ; Give all processes time to exchange messages
+  yield
+  yield
+  yield
+  yield
+  yield
+
+  ; Forward messages to stats for counting
+  push "stats"
+  push "tick"
+  send
+
+  yield
+
+  push "stats"
+  push "tick"
+  send
+
+  yield
+
+  push "stats"
+  push "tick"
+  send
+
+  yield
+
+  push "stats"
+  push "tick"
+  send
+
+  yield
+
+  push "stats"
+  push "tick"
+  send
+
+  yield
+
+  push "stats"
+  push "tick"
+  send
+
+  yield
+
+  push "stats"
+  push "tick"
+  send
+
+  yield
+  yield
+  yield
+
+  ; Also notify watchdog
+  push "watchdog"
+  push "user:alice:done"
+  send
+
+  push "watchdog"
+  push "user:bob:done"
+  send
+
+  push "watchdog"
+  push "user:charlie:done"
+  send
+
+  push "watchdog"
+  push "stats:done"
+  send
+
+  push "watchdog"
+  push "room:active"
+  send
+
+  push "watchdog"
+  push "system:healthy"
+  send
+
+  push "watchdog"
+  push "uptime:ok"
+  send
+
+  push "watchdog"
+  push "final:check"
+  send
+
+  yield
+  yield
+  yield
+  yield
+
+  push 40
+  call Chat.Format.separator/1
+  call IO.printLine/1
+
+  push "All done!"
+  call Chat.Format.systemMessage/1
+  call IO.printLine/1
+
+  push 40
+  call Chat.Format.separator/1
+  call IO.printLine/1
+
+  push :normal
+  exit
+.end

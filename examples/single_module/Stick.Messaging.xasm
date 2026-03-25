@@ -1,0 +1,46 @@
+.module Stick.Messaging
+
+.import IO.printLine/1
+.import String.concatenate/2
+
+.process receiver
+  self
+  register "receiver"
+
+  ; Wait for and print first message
+  receive
+  push "First message: "
+  call String.concatenate/2
+  call IO.printLine/1
+
+  ; Wait for and print second message
+  receive
+  push "Second message: "
+  call String.concatenate/2
+  call IO.printLine/1
+
+  push :normal
+  exit
+.end
+
+.process sender
+  ; Wait for receiver to register
+  await "receiver"
+
+  ; Send first message to "receiver"
+  push "receiver"
+  push "Hello, World!"
+  send
+
+  ; Send second message
+  push "receiver"
+  push "Bye, World!"
+  send
+
+  ; Print confirmation
+  push "Sender: Messages sent!"
+  call IO.printLine/1
+
+  push :normal
+  exit
+.end

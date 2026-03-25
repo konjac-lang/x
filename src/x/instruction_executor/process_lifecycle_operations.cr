@@ -559,6 +559,34 @@ module X
         value
       end
 
+      # PROCESS_AWAIT
+      # Block until a registered name exists
+      # Operand: String (registered name)
+      private def execute_process_await(process : Process::Context, instruction : Instruction::Operation) : Value::Context
+        process.counter += 1
+
+        unless instruction.value.string?
+          raise Exceptions::TypeMismatch.new("PROCESS_AWAIT requires a string name operand")
+        end
+
+        name = instruction.value.to_s
+
+        # Check if already registered
+        if @engine.process_registry.lookup(name)
+          return Value::Context.null
+        end
+
+        # Not yet — block and re-execute this instruction when woken
+        process.state = Process::State::WAITING
+        process.waiting_for = Value::Context.new(name)
+        process.waiting_since = Time.utc
+        process.counter -= 1
+
+        @engine.scheduler.wait_for_message(process, nil, nil)
+
+        Value::Context.null
+      end
+
       # Build process info map
       private def build_process_info(target : Process::Context) : Hash(String, Value::Context)
         info = Hash(String, Value::Context).new

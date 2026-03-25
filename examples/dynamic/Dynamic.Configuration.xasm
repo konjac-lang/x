@@ -1,0 +1,37 @@
+; Dynamic.Configuration — a dynamic module whose exported functions
+; can be swapped out at runtime without restarting the VM.
+;
+; The .dynamic directive marks this module as hot-reloadable.
+; When reload is called, all exported functions get replaced
+; with the new versions from disk.
+
+.module Dynamic.Configuration
+.dynamic
+
+.import String.concatenate/2
+
+.export greeting/1
+.export maxRetries/1
+.export version/1
+
+.subroutine greeting
+  .local name
+  store name
+  load name
+  push "Hello, "
+  call String.concatenate/2
+  push "! Welcome to v1."
+  swap
+  call String.concatenate/2
+  return
+.end
+
+.subroutine maxRetries
+  push 3
+  return
+.end
+
+.subroutine version
+  push "1.0.0"
+  return
+.end

@@ -1,0 +1,75 @@
+; Dynamic.Main — demonstrates hot-reloading of dynamic modules.
+;
+; Flow:
+;   1. Worker runs with Config v1 (greeting, maxRetries, version)
+;   2. Main sends a "reload" message to the manager
+;   3. Manager reloads Dynamic.Configuration from the v2 file on disk
+;   4. Worker runs again — now picks up v2 functions automatically
+;
+; This mimics Erlang's code_change / hot code loading where
+; running processes transparently use the new module version.
+
+.module Dynamic.Main
+
+.require "Dynamic.Configuration"
+.require "Dynamic.Worker"
+
+.import IO.printLine/1
+.import String.concatenate/2
+.import Dynamic.Worker.run/1
+
+.process manager
+  self
+  register "manager"
+
+  ; Run worker with v1
+  push "[BEFORE RELOAD]"
+  call IO.printLine/1
+  pop
+
+  push "[v1]"
+  call Dynamic.Worker.run/1
+
+  push ""
+  call IO.printLine/1
+  pop
+
+  ; Simulate: wait for reload command
+  push "Reloading Dynamic.Configuration from disk..."
+  call IO.printLine/1
+  pop
+
+  ; Trigger reload — push module name and file path
+  ; In a real system this would come from a message or file watcher
+  push "Dynamic.Configuration" ; module name
+  push "Dynamic.Configuration.v2" ; file hint
+  reload
+
+  push "Reload complete!"
+  call IO.printLine/1
+  pop
+
+  push ""
+  call IO.printLine/1
+  pop
+
+  ; Run worker with v2
+  push "[AFTER RELOAD]"
+  call IO.printLine/1
+  pop
+
+  
+  push "[v2]"
+  call Dynamic.Worker.run/1
+  
+  push ""
+  call IO.printLine/1
+  pop
+  
+  push "Functions were swapped without restart!"
+  call IO.printLine/1
+  pop
+
+  push :normal
+  exit
+.end

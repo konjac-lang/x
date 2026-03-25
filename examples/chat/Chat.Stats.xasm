@@ -1,0 +1,68 @@
+.module Chat.Stats
+
+.import IO.printLine/1
+.import String.concatenate/2
+.import Chat.Format.separator/1
+.import Chat.Format.systemMessage/1
+
+.process stats
+  self
+  register "stats"
+
+  await "room"
+
+  .local messageCount
+
+  push 0
+  store messageCount
+
+  loop
+    receive
+    pop
+
+    load messageCount
+    inc
+    store messageCount
+
+    load messageCount
+    push 3
+    mod
+    push 0
+    eq
+    if
+      load messageCount
+      push "Stats: "
+      call String.concatenate/2
+      push " messages processed"
+      swap
+      call String.concatenate/2
+      call Chat.Format.systemMessage/1
+      call IO.printLine/1
+    end
+
+    load messageCount
+    push 7
+    gte
+    if
+      push 40
+      call Chat.Format.separator/1
+      call IO.printLine/1
+
+      load messageCount
+      push "Final stats: "
+      call String.concatenate/2
+      push " total messages"
+      swap
+      call String.concatenate/2
+      call Chat.Format.systemMessage/1
+      call IO.printLine/1
+
+      push 40
+      call Chat.Format.separator/1
+      call IO.printLine/1
+
+      push :normal
+      exit
+    end
+  end
+.end

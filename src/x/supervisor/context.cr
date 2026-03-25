@@ -36,7 +36,7 @@ module X
         if process_id
           @children << {specification, process_id}
           @start_order << specification.id
-          Log.info { "Supervisor <#{@address}>: Started child '#{specification.id}' as <#{process_id}>" }
+          Log.debug { "Supervisor <#{@address}>: Started child '#{specification.id}' as <#{process_id}>" }
         else
           @children << {specification, nil}
           Log.error { "Supervisor <#{@address}>: Failed to start child '#{specification.id}'" }
@@ -90,7 +90,7 @@ module X
         specification, _ = @children[child_index]
         @children[child_index] = {specification, nil}
 
-        Log.info { "Supervisor <#{@address}>: Child '#{specification.id}' <#{process_id}> exited: #{reason.type}" }
+        Log.debug { "Supervisor <#{@address}>: Child '#{specification.id}' <#{process_id}> exited: #{reason.type}" }
 
         # Determine if we should restart
         should_restart = case specification.restart
@@ -136,7 +136,7 @@ module X
 
         if new_process_id = start_child(specification)
           @children[index] = {specification, new_process_id}
-          Log.info { "Supervisor <#{@address}>: Restarted child '#{specification.id}' as <#{new_process_id}>" }
+          Log.debug { "Supervisor <#{@address}>: Restarted child '#{specification.id}' as <#{new_process_id}>" }
         else
           Log.error { "Supervisor <#{@address}>: Failed to restart child '#{specification.id}'" }
         end
@@ -144,7 +144,7 @@ module X
 
       # Restart all children (for one_for_all strategy)
       private def restart_all
-        Log.info { "Supervisor <#{@address}>: Restarting all children" }
+        Log.debug { "Supervisor <#{@address}>: Restarting all children" }
 
         # Stop all children in reverse order
         @children.reverse_each do |(specification, process_id)|
@@ -160,14 +160,14 @@ module X
         @children.each_with_index do |(specification, _), i|
           if new_process_id = start_child(specification)
             @children[i] = {specification, new_process_id}
-            Log.info { "Supervisor <#{@address}>: Restarted child '#{specification.id}' as <#{new_process_id}>" }
+            Log.debug { "Supervisor <#{@address}>: Restarted child '#{specification.id}' as <#{new_process_id}>" }
           end
         end
       end
 
       # Restart from a specific index (for rest_for_one strategy)
       private def restart_from(start_index : Int32)
-        Log.info { "Supervisor <#{@address}>: Restarting children from index #{start_index}" }
+        Log.debug { "Supervisor <#{@address}>: Restarting children from index #{start_index}" }
 
         # Stop children from start_index to end in reverse order
         ((start_index...@children.size).to_a.reverse).each do |i|
@@ -183,7 +183,7 @@ module X
           specification, _ = @children[i]
           if new_process_id = start_child(specification)
             @children[i] = {specification, new_process_id}
-            Log.info { "Supervisor <#{@address}>: Restarted child '#{specification.id}' as <#{new_process_id}>" }
+            Log.debug { "Supervisor <#{@address}>: Restarted child '#{specification.id}' as <#{new_process_id}>" }
           end
         end
       end
@@ -254,7 +254,7 @@ module X
 
       # Shut down the supervisor and all children
       def shutdown
-        Log.info { "Supervisor <#{@address}>: Shutting down" }
+        Log.debug { "Supervisor <#{@address}>: Shutting down" }
 
         @children.reverse_each do |(specification, process_id)|
           if process_id

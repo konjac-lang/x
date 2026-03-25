@@ -1,0 +1,118 @@
+.module Chat.User
+
+.import IO.printLine/1
+.import String.concatenate/2
+.import Chat.Format.userMessage/1
+.import Chat.Logger.formatLog/1
+
+.process alice
+  self
+  register "alice"
+
+  ; Wait for room to be ready
+  await "room"
+
+  ; Alice sends messages
+  push "alice"
+  push "Hey everyone!"
+  call Chat.Format.userMessage/1
+  dup
+  call IO.printLine/1
+  push "room"
+  swap
+  send
+
+  yield
+
+  push "alice"
+  push "How is the project going?"
+  call Chat.Format.userMessage/1
+  dup
+  call IO.printLine/1
+  push "room"
+  swap
+  send
+
+  yield
+
+  push "alice"
+  push "I pushed the new code to main"
+  call Chat.Format.userMessage/1
+  dup
+  call IO.printLine/1
+  push "room"
+  swap
+  send
+
+  push :normal
+  exit
+.end
+
+.process bob
+  self
+  register "bob"
+
+  ; Wait for room and alice
+  await "room"
+  await "alice"
+  yield
+
+  ; Bob sends messages
+  push "bob"
+  push "Hi Alice!"
+  call Chat.Format.userMessage/1
+  dup
+  call IO.printLine/1
+  push "room"
+  swap
+  send
+
+  yield
+
+  push "bob"
+  push "Project is on track, reviewing your PR now"
+  call Chat.Format.userMessage/1
+  dup
+  call IO.printLine/1
+  push "room"
+  swap
+  send
+
+  push :normal
+  exit
+.end
+
+.process charlie
+  self
+  register "charlie"
+
+  ; Wait for room and bob
+  await "room"
+  await "bob"
+  yield
+  yield
+
+  ; Charlie joins late
+  push "charlie"
+  push "Sorry I'm late! What did I miss?"
+  call Chat.Format.userMessage/1
+  dup
+  call IO.printLine/1
+  push "room"
+  swap
+  send
+
+  yield
+
+  push "charlie"
+  push "Great work team!"
+  call Chat.Format.userMessage/1
+  dup
+  call IO.printLine/1
+  push "room"
+  swap
+  send
+
+  push :normal
+  exit
+.end

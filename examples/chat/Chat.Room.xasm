@@ -1,0 +1,38 @@
+.module Chat.Room
+
+.import IO.printLine/1
+.import String.concatenate/2
+.import Chat.Format.userMessage/1
+.import Chat.Format.systemMessage/1
+.import Chat.Logger.formatLog/1
+
+.process room
+  self
+  register "room"
+
+  push "Chat room started"
+  call Chat.Format.systemMessage/1
+  call IO.printLine/1
+
+  ; Main message loop
+  loop
+    receive
+    ; Message is on stack - it's a string like "join:alice" or "msg:alice:hello"
+    dup
+    push "quit"
+    eq
+    if
+      pop
+      push "Chat room shutting down"
+      call Chat.Format.systemMessage/1
+      call IO.printLine/1
+      push :normal
+      exit
+    end
+
+    ; Log the raw message
+    dup
+    call Chat.Logger.formatLog/1
+    call IO.printLine/1
+  end
+.end

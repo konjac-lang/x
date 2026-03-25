@@ -48,7 +48,7 @@ module X
         # Skip if already dead
         return if process.state == Process::State::DEAD
 
-        Log.info { "FaultHandler: Process <#{process.address}> exited: #{reason.type}" }
+        Log.debug { "FaultHandler: Process <#{process.address}> exited: #{reason.type}" }
 
         # Store exit reason on process and mark dead
         process.reason = reason

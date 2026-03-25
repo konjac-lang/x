@@ -1,0 +1,19 @@
+.module Mutli.Main
+
+.require "Multi.Greeter"
+
+.import IO.printLine/1
+.import Multi.Greeter.greet/1
+
+.process main
+  push "World"
+  call Multi.Greeter.greet/1
+  call IO.printLine/1
+
+  push "X VM"
+  call Multi.Greeter.greet/1
+  call IO.printLine/1
+
+  push :normal
+  exit
+.end

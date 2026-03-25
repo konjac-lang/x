@@ -1,0 +1,17 @@
+.module Multi.Greeter
+
+.import String.concatenate/2
+
+.export greet/1
+
+.subroutine greet
+  .local name
+  store name
+  load name
+  push "Hello, "
+  call String.concatenate/2
+  push "!"
+  swap
+  call String.concatenate/2
+  return
+.end

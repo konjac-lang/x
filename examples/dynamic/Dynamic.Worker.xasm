@@ -1,0 +1,41 @@
+.module Dynamic.Worker
+
+.import IO.printLine/1
+.import String.concatenate/2
+.import Dynamic.Configuration.greeting/1
+.import Dynamic.Configuration.maxRetries/1
+.import Dynamic.Configuration.version/1
+
+.export run/1
+
+.subroutine run
+  .local label
+  store label
+
+  call Dynamic.Configuration.version/1
+  push " ├── Running config version: "
+  call String.concatenate/2
+  load label
+  call String.concatenate/2
+  call IO.printLine/1
+  pop
+
+  push "alice"
+  call Dynamic.Configuration.greeting/1
+  push " ├── "
+  call String.concatenate/2
+  load label
+  call String.concatenate/2
+  call IO.printLine/1
+  pop
+
+  call Dynamic.Configuration.maxRetries/1
+  push " └── maxRetries = "
+  call String.concatenate/2
+  load label
+  call String.concatenate/2
+  call IO.printLine/1
+  pop
+  
+  return
+.end

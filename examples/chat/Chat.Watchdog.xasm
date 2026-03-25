@@ -1,0 +1,53 @@
+.module Chat.Watchdog
+
+.import IO.printLine/1
+.import String.concatenate/2
+.import Chat.Format.systemMessage/1
+.import Chat.Logger.formatLog/1
+
+.process watchdog
+  self
+  register "watchdog"
+  trap_on
+
+  ; Wait for room to start
+  await "room"
+
+  push "Monitor watching chat processes"
+  call Chat.Logger.formatLog/1
+  call IO.printLine/1
+
+  ; Monitor loop - catches exit signals from linked processes
+  .local messageCount
+  push 0
+  store messageCount
+
+  loop
+    receive
+    ; Got a trapped exit or a status message
+    dup
+    call Chat.Logger.formatLog/1
+    call IO.printLine/1
+
+    load messageCount
+    inc
+    store messageCount
+
+    ; After seeing enough messages, send quit to room
+    load messageCount
+    push 8
+    gte
+    if
+      push "room"
+      push "quit"
+      send
+
+      push "Monitor: sent shutdown signal"
+      call Chat.Logger.formatLog/1
+      call IO.printLine/1
+
+      push :normal
+      exit
+    end
+  end
+.end

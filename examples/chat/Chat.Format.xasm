@@ -1,0 +1,60 @@
+.module Chat.Format
+
+.import String.concatenate/2
+
+.export userMessage/1
+.export systemMessage/1
+.export separator/1
+
+.subroutine userMessage
+  .local text
+  .local username
+  store text
+  store username
+  push ": "
+  load username
+  call String.concatenate/2
+  load text
+  swap
+  call String.concatenate/2
+  return
+.end
+
+.subroutine systemMessage
+  .local message
+  store message
+  load message
+  push "*** "
+  call String.concatenate/2
+  push " ***"
+  swap
+  call String.concatenate/2
+  return
+.end
+
+.subroutine separator
+  .local len
+  .local result
+  .local i
+  store len
+  push ""
+  store result
+  push 0
+  store i
+  loop
+    load i
+    load len
+    gte
+    break_if
+    load result
+    push "="
+    swap
+    call String.concatenate/2
+    store result
+    load i
+    inc
+    store i
+  end
+  load result
+  return
+.end

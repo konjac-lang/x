@@ -164,6 +164,7 @@ module X
           when Instruction::Code::PROCESS_WHEREIS           then execute_process_whereis(process, instruction)
           when Instruction::Code::PROCESS_SET_FLAG          then execute_process_set_flag(process)
           when Instruction::Code::PROCESS_GET_FLAG          then execute_process_get_flag(process)
+          when Instruction::Code::PROCESS_AWAIT             then execute_process_await(process, instruction)
             # MESSAGE OPERATIONS
           when Instruction::Code::MESSAGE_SEND                           then execute_message_send(process)
           when Instruction::Code::MESSAGE_SEND_AFTER                     then execute_message_send_after(process)
@@ -201,40 +202,43 @@ module X
         instructions : Array(Instruction::Operation),
         arguments : Array(Value::Context),
       ) : Value::Context
-        # Save current state
         saved_counter = process.counter
         saved_instructions = process.instructions
         saved_locals = process.locals.dup
         saved_frame_pointer = process.frame_pointer
 
-        # Set up function environment
         process.instructions = instructions
         process.counter = 0_u64
         process.frame_pointer = process.locals.size
 
-        # Push arguments as locals
-        arguments.each { |arg| process.locals << arg }
+        # Push arguments onto the stack — the function body will store them into locals
+        arguments.each { |arg| process.stack.push(arg) }
 
-        # Execute instructions
         result = Value::Context.null
 
         while process.counter < process.instructions.size
           instruction = process.instructions[process.counter]
-          result = execute(process, instruction)
 
-          # Check for RETURN
           if instruction.code == Instruction::Code::CONTROL_RETURN ||
              instruction.code == Instruction::Code::CONTROL_RETURN_VALUE
+            if !process.stack.empty?
+              result = process.stack.pop
+            end
             break
+          end
+
+          old_counter = process.counter
+          result = execute(process, instruction)
+
+          if process.counter == old_counter
+            process.counter += 1
           end
         end
 
-        # Get result from stack if available
-        if !process.stack.empty?
+        if result.null? && !process.stack.empty?
           result = process.stack.pop
         end
 
-        # Restore state
         process.instructions = saved_instructions
         process.counter = saved_counter
         process.locals = saved_locals

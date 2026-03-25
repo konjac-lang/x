@@ -1,0 +1,37 @@
+; Dynamic.Configuration v2 — updated version loaded at runtime
+;
+; Changes from v1:
+;   - greeting now says "Hey" instead of "Hello"
+;   - maxRetries bumped from 3 to 5
+;   - version bumped to 2.0.0
+
+.module Dynamic.Configuration
+.dynamic
+
+.import String.concatenate/2
+
+.export greeting/1
+.export maxRetries/1
+.export version/1
+
+.subroutine greeting
+  .local name
+  store name
+  load name
+  push "Hey, "
+  call String.concatenate/2
+  push "! Welcome to v2 (hot-reloaded)."
+  swap
+  call String.concatenate/2
+  return
+.end
+
+.subroutine maxRetries
+  push 5
+  return
+.end
+
+.subroutine version
+  push "2.0.0"
+  return
+.end

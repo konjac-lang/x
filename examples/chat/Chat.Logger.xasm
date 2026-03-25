@@ -1,0 +1,14 @@
+.module Chat.Logger
+
+.import String.concatenate/2
+
+.export formatLog/1
+
+.subroutine formatLog
+  .local message
+  store message
+  load message
+  push "[LOG] "
+  call String.concatenate/2
+  return
+.end

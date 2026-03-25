@@ -72,6 +72,10 @@ module X
           action
         end
 
+        def enable_step_mode
+          @step_mode = true
+        end
+
         def stepping? : Bool
           @step_mode || @step_over_depth != nil
         end
