@@ -12,17 +12,17 @@ Inspired by Erlang's BEAM, but designed to be simple, hackable, and embeddable.
 
 ## Features
 
-- **Stack-based VM** -- 120+ instructions across stack, arithmetic, logic, control flow, process, and message operations
-- **Actor-model concurrency** -- Lightweight processes with isolated stacks, mailboxes, and preemptive scheduling via reductions
-- **Fault tolerance** -- Process linking, monitoring, exit trapping, and supervision trees (one-for-one, one-for-all, rest-for-one)
-- **XASM assembler** -- Human-readable assembly language with modules, imports, exports, subroutines, and block-based control flow
-- **Multi-module system** -- `.require` with automatic file resolution, `.import`/`.export` for cross-module calls
-- **Hot code reloading** -- `.dynamic` modules can be reloaded at runtime without restarting processes
-- **Elixir-style standard library** -- IO, String, Integer, Float, Array, Map, Type modules with 80+ built-in functions
-- **Interactive debugger** -- Step, continue, breakpoints, stack/locals inspection, process filtering
-- **Lambdas and closures** -- First-class functions with captured variables
-- **Exception handling** -- try/catch/throw with stack unwinding
-- **Pure Crystal** -- No external dependencies beyond standard library
+- **Stack-based VM** - 120+ instructions across stack, arithmetic, logic, control flow, process, and message operations
+- **Actor-model concurrency** - Lightweight processes with isolated stacks, mailboxes, and preemptive scheduling via reductions
+- **Fault tolerance** - Process linking, monitoring, exit trapping, and supervision trees (one-for-one, one-for-all, rest-for-one)
+- **XASM assembler** - Human-readable assembly language with modules, imports, exports, subroutines, and block-based control flow
+- **Multi-module system** - `.require` with automatic file resolution, `.import`/`.export` for cross-module calls
+- **Hot code reloading** - `.dynamic` modules can be reloaded at runtime without restarting processes
+- **Elixir-style standard library** - IO, String, Integer, Float, Array, Map, Type modules with 80+ built-in functions
+- **Interactive debugger** - Step, continue, breakpoints, stack/locals inspection, process filtering
+- **Lambdas and closures** - First-class functions with captured variables
+- **Exception handling** - try/catch/throw with stack unwinding
+- **Pure Crystal** - No external dependencies beyond standard library
 
 ## Quick Start
 
