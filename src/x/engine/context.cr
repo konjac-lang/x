@@ -453,6 +453,14 @@ module X
 
           Log.debug { "Executing process <#{process.address}>" }
           execute_process_slice(process)
+
+          # After slice, re-enqueue based on state
+          if process.state.alive? && process.counter < process.instructions.size
+            scheduler.yield_process(process)
+          elsif process.state == Process::State::WAITING
+            scheduler.enqueue(process)
+          end
+
           handle_process_result(process)
 
           Fiber.yield
@@ -472,7 +480,7 @@ module X
         end
 
         Log.debug { "Scheduler has work (waiting/blocked processes), sleeping..." }
-        sleep 1.millisecond
+        Fiber.yield
         true
       end
 

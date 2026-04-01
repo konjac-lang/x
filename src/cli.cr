@@ -15,8 +15,6 @@ module X
     parser = OptionParser.new do |opts|
       opts.banner = "Usage: x [options] <file.xasm> [file2.xasm ...]"
       opts.separator ""
-      opts.separator "The X Virtual Machine — BEAM-inspired VM with actor-model concurrency"
-      opts.separator ""
       opts.separator "Options:"
 
       opts.on("-v", "--version", "Show version") do
@@ -83,7 +81,7 @@ module X
 
     # Create engine
     engine = Engine::Context.new
-    Assembler.register_default_built_ins(engine)
+    Assembler::Base.register_default_built_ins(engine)
 
     # Create loader
     loader = Assembler::Loader.new(engine, search_roots: search_roots)

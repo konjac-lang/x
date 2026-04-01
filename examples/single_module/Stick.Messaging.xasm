@@ -4,20 +4,22 @@
 .import String.concatenate/2
 
 .process receiver
-  self
   register "receiver"
+  pop ; Discard the boolean result of the register instruction
 
   ; Wait for and print first message
   receive
   push "First message: "
   call String.concatenate/2
   call IO.printLine/1
+  pop
 
   ; Wait for and print second message
   receive
   push "Second message: "
   call String.concatenate/2
   call IO.printLine/1
+  pop
 
   push :normal
   exit
@@ -40,6 +42,7 @@
   ; Print confirmation
   push "Sender: Messages sent!"
   call IO.printLine/1
+  pop
 
   push :normal
   exit

@@ -345,14 +345,11 @@ module X
         arguments = [] of Value::Context
         arity.times { arguments.unshift(process.stack.pop) }
 
-        saved_arguments = arguments.dup
-
         result = @engine.call_built_in_function(process, module_name, function_name, arguments)
 
-        if process.state == Process::State::WAITING
-          Log.debug { "Process <#{process.address}>: #{module_name}.#{function_name} suspended, restoring #{saved_arguments.size} args" }
-          saved_arguments.each { |arg| process.stack.push(arg) }
-        else
+        # If the built-in parked the process, don't push anything.
+        # The async fiber will push the result and wake the process.
+        unless process.state == Process::State::WAITING
           process.stack.push(result)
         end
 

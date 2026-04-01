@@ -173,7 +173,7 @@ module X
           source = File.read(path)
 
           if captured_loader.reload_module(module_name, source)
-            Value::Context.new(:ok)
+            Value::Context.new(:okay)
           else
             Value::Context.new(:error)
           end

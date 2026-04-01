@@ -54,6 +54,13 @@ module X
         new_process = @engine.create_process(instructions: instructions)
         new_process.parent = process.address if new_process.responds_to?(:parent=)
 
+        # Transfer the value below the instructions to the child's stack
+        # This is how the spawned block captures values (e.g., the client socket)
+        unless process.stack.empty?
+          captured_value = process.stack.pop
+          new_process.stack.push(captured_value)
+        end
+
         # Create bidirectional link atomically
         @engine.link_registry.link(process.address, new_process.address)
 

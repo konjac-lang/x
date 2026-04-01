@@ -1,0 +1,104 @@
+.module Echo.Main
+
+; A TCP echo server demonstrating process-per-client concurrency.
+; Each client connection is handled in its own lightweight process.
+
+.import IO.printLine/1
+.import TCP.listen/1
+.import TCP.accept/1
+.import TCP.receive/2
+.import TCP.send/2
+.import TCP.close/1
+.import TCP.localAddress/1
+.import String.concatenate/2
+.import Integer.toString/1
+.import Type.of/1
+
+.process main
+  .local server
+  .local address
+
+  ; Start listening on port 4000
+  push 4000
+  call TCP.listen/1
+  store server
+
+  ; Print the bound address
+  load server
+  call TCP.localAddress/1
+  store address
+
+  push "Echo server listening on port 4000"
+  call IO.printLine/1
+
+  ; Accept loop: spawn a handler for each connection
+  loop
+    load server
+    call TCP.accept/1
+
+    ; Spawn a linked process to handle this client
+    ; The client socket is on the stack — captured by the spawned block
+    spawn_link
+      .local client
+      store client
+
+      push "Client connected"
+      call IO.printLine/1
+
+      ; Read loop
+      loop
+        load client
+        push 4096
+        call TCP.receive/2
+
+        ; Check if the connection closed
+        dup
+        push :closed
+        eq
+        if
+          pop
+          push "Client disconnected"
+          call IO.printLine/1
+
+          load client
+          call TCP.close/1
+          pop
+
+          push :normal
+          exit
+        end
+
+        ; Check for errors: [:error, reason]
+        dup
+        call Type.of/1
+        push "Array"
+        eq
+        if
+          push "Client error, closing"
+          call IO.printLine/1
+          pop
+
+          load client
+          call TCP.close/1
+          pop
+
+          push :normal
+          exit
+        end
+
+        ; Echo the data back
+        dup
+        load client
+        swap
+        call TCP.send/2
+        pop ; discard :okay
+        pop ; discard data
+      end
+
+      push :normal
+      exit
+    end
+
+    pop ; discard the child PID from spawn_link
+  end
+.end

@@ -345,8 +345,8 @@ Press Enter to repeat the last command.
 
 | Function | Description |
 |----------|-------------|
-| `IO.puts/1` | Print string with newline, returns `:ok` |
-| `IO.print/1` | Print string without newline, returns `:ok` |
+| `IO.puts/1` | Print string with newline, returns `:okay` |
+| `IO.print/1` | Print string without newline, returns `:okay` |
 | `IO.printLine/1` | Alias for `IO.puts/1` |
 | `IO.inspect/1` | Print inspect representation, returns the value |
 | `IO.gets/0` | Read a line from stdin |
