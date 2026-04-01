@@ -57,9 +57,22 @@ module X
           arguments.first
         end
 
-        engine.register_built_in_function("IO", "gets", 0) do |_engine, _process, _arguments|
-          line = gets || ""
-          Value::Context.new(line.chomp)
+        engine.register_built_in_function("IO", "gets", 0) do |engine, process, _arguments|
+          process.state = Process::State::WAITING
+          process.waiting_for = Value::Context.new(:io)
+          process.waiting_since = Time.utc
+
+          spawn do
+            begin
+              line = gets || ""
+              process.stack.push(Value::Context.new(line.chomp))
+            rescue ex
+              process.stack.push(Value::Context.new(""))
+            end
+            engine.queue_process_for_reactivation(process)
+          end
+
+          Value::Context.null
         end
 
         engine.register_built_in_function("IO", "printLine", 1) do |_engine, _process, arguments|
@@ -583,7 +596,11 @@ module X
         end
       end
 
+      # TCP - Async I/O
+
       private def self.register_tcp(engine : Engine::Context)
+        # Non-blocking (synchronous)
+
         engine.register_built_in_function("TCP", "listen", 1) do |_engine, _process, arguments|
           port = arguments.first.to_i64.to_i32
           server = TCPServer.new("0.0.0.0", port)
@@ -608,224 +625,6 @@ module X
           Value::Context.new(server)
         end
 
-        engine.register_built_in_function("TCP", "accept", 1) do |engine, process, arguments|
-          server = Box(TCPServer).unbox(arguments.first.pointer)
-
-          process.state = Process::State::WAITING
-          process.waiting_for = Value::Context.new(:io)
-          process.waiting_since = Time.utc
-
-          spawn do
-            begin
-              client = server.accept
-              client.sync = false
-              client.tcp_nodelay = true
-              process.stack.push(Value::Context.new(client))
-            rescue ex
-              process.stack.push(Value::Context.new([
-                Value::Context.new(:error),
-                Value::Context.new(ex.message || "Accept failed"),
-              ] of Value::Context))
-            end
-            engine.queue_process_for_reactivation(process)
-          end
-
-          Value::Context.null
-        end
-
-        engine.register_built_in_function("TCP", "acceptTimeout", 2) do |_engine, _process, arguments|
-          server = Box(TCPServer).unbox(arguments.last.pointer)
-          timeout_ms = arguments.first.to_i64.to_i32
-          server.read_timeout = timeout_ms.milliseconds
-          begin
-            client = server.accept
-            client.sync = false
-            client.tcp_nodelay = true
-            Value::Context.new(client)
-          rescue IO::TimeoutError
-            Value::Context.new(:timeout)
-          ensure
-            server.read_timeout = nil
-          end
-        end
-
-        engine.register_built_in_function("TCP", "connect", 2) do |_engine, _process, arguments|
-          host = arguments.last.to_s
-          port = arguments.first.to_i64.to_i32
-          socket = TCPSocket.new(host, port)
-          socket.sync = false
-          socket.tcp_nodelay = true
-          Value::Context.new(socket)
-        end
-
-        engine.register_built_in_function("TCP", "connectTimeout", 3) do |_engine, _process, arguments|
-          host = arguments[2].to_s
-          port = arguments[1].to_i64.to_i32
-          timeout_ms = arguments[0].to_i64.to_i32
-          begin
-            socket = TCPSocket.new(host, port, connect_timeout: timeout_ms.milliseconds)
-            socket.sync = false
-            socket.tcp_nodelay = true
-            Value::Context.new(socket)
-          rescue IO::TimeoutError
-            Value::Context.new(:timeout)
-          end
-        end
-
-        engine.register_built_in_function("TCP", "send", 2) do |engine, process, arguments|
-          socket = Box(TCPSocket).unbox(arguments.first.pointer)
-          data = arguments.last.to_s
-
-          process.state = Process::State::WAITING
-          process.waiting_for = Value::Context.new(:io)
-          process.waiting_since = Time.utc
-
-          spawn do
-            begin
-              socket.write(data.to_slice)
-              process.stack.push(Value::Context.new(:okay))
-            rescue ex
-              process.stack.push(Value::Context.new([
-                Value::Context.new(:error),
-                Value::Context.new(ex.message || "write failed"),
-              ] of Value::Context))
-            end
-            engine.queue_process_for_reactivation(process)
-          end
-
-          Value::Context.null
-        end
-
-        engine.register_built_in_function("TCP", "sendBinary", 2) do |_engine, _process, arguments|
-          socket = Box(TCPSocket).unbox(arguments.last.pointer)
-          data = arguments.first.to_binary
-          begin
-            socket.write(data)
-            Value::Context.new(:okay)
-          rescue ex : IO::Error
-            Value::Context.new([
-              Value::Context.new(:error),
-              Value::Context.new(ex.message || "write failed"),
-            ] of Value::Context)
-          end
-        end
-
-        engine.register_built_in_function("TCP", "receive", 2) do |engine, process, arguments|
-          socket = Box(TCPSocket).unbox(arguments.first.pointer)
-          max = arguments.last.to_i64.to_i32
-
-          process.state = Process::State::WAITING
-          process.waiting_for = Value::Context.new(:io)
-          process.waiting_since = Time.utc
-
-          spawn do
-            begin
-              buffer = Bytes.new(max)
-              bytes_read = socket.read(buffer)
-              if bytes_read == 0
-                process.stack.push(Value::Context.new(:closed))
-              else
-                process.stack.push(Value::Context.new(String.new(buffer[0, bytes_read])))
-              end
-            rescue ex
-              process.stack.push(Value::Context.new([
-                Value::Context.new(:error),
-                Value::Context.new(ex.message || "read failed"),
-              ] of Value::Context))
-            end
-            engine.queue_process_for_reactivation(process)
-          end
-
-          Value::Context.null
-        end
-
-        engine.register_built_in_function("TCP", "receiveBinary", 2) do |_engine, _process, arguments|
-          socket = Box(TCPSocket).unbox(arguments.last.pointer)
-          max = arguments.first.to_i64.to_i32
-          buffer = Bytes.new(max)
-          begin
-            bytes_read = socket.read(buffer)
-            if bytes_read == 0
-              Value::Context.new(:closed)
-            else
-              Value::Context.new(buffer[0, bytes_read])
-            end
-          rescue ex : IO::Error
-            Value::Context.new([
-              Value::Context.new(:error),
-              Value::Context.new(ex.message || "read failed"),
-            ] of Value::Context)
-          end
-        end
-
-        engine.register_built_in_function("TCP", "receiveTimeout", 3) do |_engine, _process, arguments|
-          socket = Box(TCPSocket).unbox(arguments[2].pointer)
-          max = arguments[1].to_i64.to_i32
-          timeout_ms = arguments[0].to_i64.to_i32
-          buffer = Bytes.new(max)
-          begin
-            socket.read_timeout = timeout_ms.milliseconds
-            bytes_read = socket.read(buffer)
-            if bytes_read == 0
-              Value::Context.new(:closed)
-            else
-              Value::Context.new(String.new(buffer[0, bytes_read]))
-            end
-          rescue IO::TimeoutError
-            Value::Context.new(:timeout)
-          rescue ex : IO::Error
-            Value::Context.new([
-              Value::Context.new(:error),
-              Value::Context.new(ex.message || "read failed"),
-            ] of Value::Context)
-          ensure
-            socket.read_timeout = nil
-          end
-        end
-
-        engine.register_built_in_function("TCP", "receiveLine", 2) do |_engine, _process, arguments|
-          socket = Box(TCPSocket).unbox(arguments.last.pointer)
-          max = arguments.first.to_i64.to_i32
-          begin
-            line = socket.gets(max)
-            if line.nil?
-              Value::Context.new(:closed)
-            else
-              Value::Context.new(line)
-            end
-          rescue ex : IO::Error
-            Value::Context.new([
-              Value::Context.new(:error),
-              Value::Context.new(ex.message || "read failed"),
-            ] of Value::Context)
-          end
-        end
-
-        engine.register_built_in_function("TCP", "receiveExact", 2) do |_engine, _process, arguments|
-          socket = Box(TCPSocket).unbox(arguments.last.pointer)
-          exact = arguments.first.to_i64.to_i32
-          buffer = Bytes.new(exact)
-          begin
-            total_read = 0
-            while total_read < exact
-              bytes_read = socket.read(buffer[total_read..])
-
-              if bytes_read == 0
-                next Value::Context.new(:closed)
-              end
-
-              total_read += bytes_read
-            end
-
-            Value::Context.new(String.new(buffer))
-          rescue ex : IO::Error
-            Value::Context.new([
-              Value::Context.new(:error),
-              Value::Context.new(ex.message || "read failed"),
-            ] of Value::Context)
-          end
-        end
-
         engine.register_built_in_function("TCP", "close", 1) do |_engine, _process, arguments|
           begin
             io = Box(IO).unbox(arguments.first.pointer)
@@ -833,31 +632,6 @@ module X
           rescue
           end
           Value::Context.new(:okay)
-        end
-
-        engine.register_built_in_function("TCP", "shutdown", 2) do |_engine, _process, arguments|
-          socket = Box(TCPSocket).unbox(arguments.last.pointer)
-          direction = arguments.first.to_s
-          begin
-            case direction
-            when "read"  then socket.close_read
-            when "write" then socket.close_write
-            when "both"
-              socket.close_read
-              socket.close_write
-            else
-              next Value::Context.new([
-                Value::Context.new(:error),
-                Value::Context.new("invalid direction: #{direction}, expected read|write|both"),
-              ] of Value::Context)
-            end
-            Value::Context.new(:okay)
-          rescue ex : IO::Error
-            Value::Context.new([
-              Value::Context.new(:error),
-              Value::Context.new(ex.message || "shutdown failed"),
-            ] of Value::Context)
-          end
         end
 
         engine.register_built_in_function("TCP", "isClosed", 1) do |_engine, _process, arguments|
@@ -958,9 +732,354 @@ module X
             Value::Context.new(addr.port.to_i64),
           ] of Value::Context)
         end
+
+        engine.register_built_in_function("TCP", "shutdown", 2) do |_engine, _process, arguments|
+          socket = Box(TCPSocket).unbox(arguments.last.pointer)
+          direction = arguments.first.to_s
+          begin
+            case direction
+            when "read"  then socket.close_read
+            when "write" then socket.close_write
+            when "both"
+              socket.close_read
+              socket.close_write
+            else
+              next Value::Context.new([
+                Value::Context.new(:error),
+                Value::Context.new("invalid direction: #{direction}, expected read|write|both"),
+              ] of Value::Context)
+            end
+            Value::Context.new(:okay)
+          rescue ex : IO::Error
+            Value::Context.new([
+              Value::Context.new(:error),
+              Value::Context.new(ex.message || "shutdown failed"),
+            ] of Value::Context)
+          end
+        end
+
+        # Async (blocking I/O in fibers)
+
+        engine.register_built_in_function("TCP", "accept", 1) do |engine, process, arguments|
+          server = Box(TCPServer).unbox(arguments.first.pointer)
+
+          process.state = Process::State::WAITING
+          process.waiting_for = Value::Context.new(:io)
+          process.waiting_since = Time.utc
+
+          spawn do
+            begin
+              client = server.accept
+              client.sync = false
+              client.tcp_nodelay = true
+              process.stack.push(Value::Context.new(client))
+            rescue ex
+              process.stack.push(Value::Context.new([
+                Value::Context.new(:error),
+                Value::Context.new(ex.message || "accept failed"),
+              ] of Value::Context))
+            end
+            engine.queue_process_for_reactivation(process)
+          end
+
+          Value::Context.null
+        end
+
+        engine.register_built_in_function("TCP", "acceptTimeout", 2) do |engine, process, arguments|
+          server = Box(TCPServer).unbox(arguments.last.pointer)
+          timeout_ms = arguments.first.to_i64.to_i32
+
+          process.state = Process::State::WAITING
+          process.waiting_for = Value::Context.new(:io)
+          process.waiting_since = Time.utc
+
+          spawn do
+            begin
+              server.read_timeout = timeout_ms.milliseconds
+              client = server.accept
+              client.sync = false
+              client.tcp_nodelay = true
+              process.stack.push(Value::Context.new(client))
+            rescue IO::TimeoutError
+              process.stack.push(Value::Context.new(:timeout))
+            rescue ex
+              process.stack.push(Value::Context.new([
+                Value::Context.new(:error),
+                Value::Context.new(ex.message || "accept failed"),
+              ] of Value::Context))
+            ensure
+              server.read_timeout = nil
+            end
+            engine.queue_process_for_reactivation(process)
+          end
+
+          Value::Context.null
+        end
+
+        engine.register_built_in_function("TCP", "connect", 2) do |engine, process, arguments|
+          host = arguments.last.to_s
+          port = arguments.first.to_i64.to_i32
+
+          process.state = Process::State::WAITING
+          process.waiting_for = Value::Context.new(:io)
+          process.waiting_since = Time.utc
+
+          spawn do
+            begin
+              socket = TCPSocket.new(host, port)
+              socket.sync = false
+              socket.tcp_nodelay = true
+              process.stack.push(Value::Context.new(socket))
+            rescue ex
+              process.stack.push(Value::Context.new([
+                Value::Context.new(:error),
+                Value::Context.new(ex.message || "connect failed"),
+              ] of Value::Context))
+            end
+            engine.queue_process_for_reactivation(process)
+          end
+
+          Value::Context.null
+        end
+
+        engine.register_built_in_function("TCP", "connectTimeout", 3) do |engine, process, arguments|
+          host = arguments[2].to_s
+          port = arguments[1].to_i64.to_i32
+          timeout_ms = arguments[0].to_i64.to_i32
+
+          process.state = Process::State::WAITING
+          process.waiting_for = Value::Context.new(:io)
+          process.waiting_since = Time.utc
+
+          spawn do
+            begin
+              socket = TCPSocket.new(host, port, connect_timeout: timeout_ms.milliseconds)
+              socket.sync = false
+              socket.tcp_nodelay = true
+              process.stack.push(Value::Context.new(socket))
+            rescue IO::TimeoutError
+              process.stack.push(Value::Context.new(:timeout))
+            rescue ex
+              process.stack.push(Value::Context.new([
+                Value::Context.new(:error),
+                Value::Context.new(ex.message || "connect failed"),
+              ] of Value::Context))
+            end
+            engine.queue_process_for_reactivation(process)
+          end
+
+          Value::Context.null
+        end
+
+        engine.register_built_in_function("TCP", "send", 2) do |engine, process, arguments|
+          socket = Box(TCPSocket).unbox(arguments.first.pointer)
+          data = arguments.last.to_s
+
+          process.state = Process::State::WAITING
+          process.waiting_for = Value::Context.new(:io)
+          process.waiting_since = Time.utc
+
+          spawn do
+            begin
+              socket.write(data.to_slice)
+              process.stack.push(Value::Context.new(:okay))
+            rescue ex
+              process.stack.push(Value::Context.new([
+                Value::Context.new(:error),
+                Value::Context.new(ex.message || "write failed"),
+              ] of Value::Context))
+            end
+            engine.queue_process_for_reactivation(process)
+          end
+
+          Value::Context.null
+        end
+
+        engine.register_built_in_function("TCP", "sendBinary", 2) do |engine, process, arguments|
+          socket = Box(TCPSocket).unbox(arguments.last.pointer)
+          data = arguments.first.to_binary
+
+          process.state = Process::State::WAITING
+          process.waiting_for = Value::Context.new(:io)
+          process.waiting_since = Time.utc
+
+          spawn do
+            begin
+              socket.write(data)
+              process.stack.push(Value::Context.new(:okay))
+            rescue ex
+              process.stack.push(Value::Context.new([
+                Value::Context.new(:error),
+                Value::Context.new(ex.message || "write failed"),
+              ] of Value::Context))
+            end
+            engine.queue_process_for_reactivation(process)
+          end
+
+          Value::Context.null
+        end
+
+        engine.register_built_in_function("TCP", "receive", 2) do |engine, process, arguments|
+          socket = Box(TCPSocket).unbox(arguments.first.pointer)
+          max = arguments.last.to_i64.to_i32
+
+          process.state = Process::State::WAITING
+          process.waiting_for = Value::Context.new(:io)
+          process.waiting_since = Time.utc
+
+          spawn do
+            begin
+              buffer = Bytes.new(max)
+              bytes_read = socket.read(buffer)
+              if bytes_read == 0
+                process.stack.push(Value::Context.new(:closed))
+              else
+                process.stack.push(Value::Context.new(String.new(buffer[0, bytes_read])))
+              end
+            rescue ex
+              process.stack.push(Value::Context.new([
+                Value::Context.new(:error),
+                Value::Context.new(ex.message || "read failed"),
+              ] of Value::Context))
+            end
+            engine.queue_process_for_reactivation(process)
+          end
+
+          Value::Context.null
+        end
+
+        engine.register_built_in_function("TCP", "receiveBinary", 2) do |engine, process, arguments|
+          socket = Box(TCPSocket).unbox(arguments.last.pointer)
+          max = arguments.first.to_i64.to_i32
+
+          process.state = Process::State::WAITING
+          process.waiting_for = Value::Context.new(:io)
+          process.waiting_since = Time.utc
+
+          spawn do
+            begin
+              buffer = Bytes.new(max)
+              bytes_read = socket.read(buffer)
+              if bytes_read == 0
+                process.stack.push(Value::Context.new(:closed))
+              else
+                process.stack.push(Value::Context.new(buffer[0, bytes_read]))
+              end
+            rescue ex
+              process.stack.push(Value::Context.new([
+                Value::Context.new(:error),
+                Value::Context.new(ex.message || "read failed"),
+              ] of Value::Context))
+            end
+            engine.queue_process_for_reactivation(process)
+          end
+
+          Value::Context.null
+        end
+
+        engine.register_built_in_function("TCP", "receiveTimeout", 3) do |engine, process, arguments|
+          socket = Box(TCPSocket).unbox(arguments[2].pointer)
+          max = arguments[1].to_i64.to_i32
+          timeout_ms = arguments[0].to_i64.to_i32
+
+          process.state = Process::State::WAITING
+          process.waiting_for = Value::Context.new(:io)
+          process.waiting_since = Time.utc
+
+          spawn do
+            begin
+              socket.read_timeout = timeout_ms.milliseconds
+              buffer = Bytes.new(max)
+              bytes_read = socket.read(buffer)
+              if bytes_read == 0
+                process.stack.push(Value::Context.new(:closed))
+              else
+                process.stack.push(Value::Context.new(String.new(buffer[0, bytes_read])))
+              end
+            rescue IO::TimeoutError
+              process.stack.push(Value::Context.new(:timeout))
+            rescue ex
+              process.stack.push(Value::Context.new([
+                Value::Context.new(:error),
+                Value::Context.new(ex.message || "read failed"),
+              ] of Value::Context))
+            ensure
+              socket.read_timeout = nil
+            end
+            engine.queue_process_for_reactivation(process)
+          end
+
+          Value::Context.null
+        end
+
+        engine.register_built_in_function("TCP", "receiveLine", 2) do |engine, process, arguments|
+          socket = Box(TCPSocket).unbox(arguments.last.pointer)
+          max = arguments.first.to_i64.to_i32
+
+          process.state = Process::State::WAITING
+          process.waiting_for = Value::Context.new(:io)
+          process.waiting_since = Time.utc
+
+          spawn do
+            begin
+              line = socket.gets(max)
+              if line.nil?
+                process.stack.push(Value::Context.new(:closed))
+              else
+                process.stack.push(Value::Context.new(line))
+              end
+            rescue ex
+              process.stack.push(Value::Context.new([
+                Value::Context.new(:error),
+                Value::Context.new(ex.message || "read failed"),
+              ] of Value::Context))
+            end
+            engine.queue_process_for_reactivation(process)
+          end
+
+          Value::Context.null
+        end
+
+        engine.register_built_in_function("TCP", "receiveExact", 2) do |engine, process, arguments|
+          socket = Box(TCPSocket).unbox(arguments.last.pointer)
+          exact = arguments.first.to_i64.to_i32
+
+          process.state = Process::State::WAITING
+          process.waiting_for = Value::Context.new(:io)
+          process.waiting_since = Time.utc
+
+          spawn do
+            begin
+              buffer = Bytes.new(exact)
+              total_read = 0
+              while total_read < exact
+                bytes_read = socket.read(buffer[total_read..])
+                if bytes_read == 0
+                  process.stack.push(Value::Context.new(:closed))
+                  engine.queue_process_for_reactivation(process)
+                  next
+                end
+                total_read += bytes_read
+              end
+              process.stack.push(Value::Context.new(String.new(buffer)))
+            rescue ex
+              process.stack.push(Value::Context.new([
+                Value::Context.new(:error),
+                Value::Context.new(ex.message || "read failed"),
+              ] of Value::Context))
+            end
+            engine.queue_process_for_reactivation(process)
+          end
+
+          Value::Context.null
+        end
       end
 
+      # UDP - Async I/O
+
       private def self.register_udp(engine : Engine::Context)
+        # Non-blocking (synchronous)
+
         engine.register_built_in_function("UDP", "open", 1) do |_engine, _process, arguments|
           port = arguments.first.to_i64.to_i32
           socket = UDPSocket.new
@@ -984,139 +1103,12 @@ module X
           Value::Context.new(socket)
         end
 
-        engine.register_built_in_function("UDP", "sendTo", 4) do |_engine, _process, arguments|
-          socket = Box(UDPSocket).unbox(arguments[3].pointer)
-          host = arguments[2].to_s
-          port = arguments[1].to_i64.to_i32
-          data = arguments[0].to_s
-          begin
-            socket.send(data, Socket::IPAddress.new(host, port))
-            Value::Context.new(:okay)
-          rescue ex : IO::Error
-            Value::Context.new([
-              Value::Context.new(:error),
-              Value::Context.new(ex.message || "send failed"),
-            ] of Value::Context)
-          end
-        end
-
-        engine.register_built_in_function("UDP", "sendToBinary", 4) do |_engine, _process, arguments|
-          socket = Box(UDPSocket).unbox(arguments[3].pointer)
-          host = arguments[2].to_s
-          port = arguments[1].to_i64.to_i32
-          data = arguments[0].to_binary
-          begin
-            socket.send(data, Socket::IPAddress.new(host, port))
-            Value::Context.new(:okay)
-          rescue ex : IO::Error
-            Value::Context.new([
-              Value::Context.new(:error),
-              Value::Context.new(ex.message || "send failed"),
-            ] of Value::Context)
-          end
-        end
-
-        engine.register_built_in_function("UDP", "receiveFrom", 2) do |_engine, _process, arguments|
-          socket = Box(UDPSocket).unbox(arguments.last.pointer)
-          max = arguments.first.to_i64.to_i32
-          buffer = Bytes.new(max)
-          begin
-            bytes_read, addr = socket.receive(buffer)
-            ip_addr = addr.as(Socket::IPAddress)
-            Value::Context.new([
-              Value::Context.new(String.new(buffer[0, bytes_read])),
-              Value::Context.new(ip_addr.address),
-              Value::Context.new(ip_addr.port.to_i64),
-            ] of Value::Context)
-          rescue ex : IO::Error
-            Value::Context.new([
-              Value::Context.new(:error),
-              Value::Context.new(ex.message || "receive failed"),
-            ] of Value::Context)
-          end
-        end
-
-        engine.register_built_in_function("UDP", "receiveFromBinary", 2) do |_engine, _process, arguments|
-          socket = Box(UDPSocket).unbox(arguments.last.pointer)
-          max = arguments.first.to_i64.to_i32
-          buffer = Bytes.new(max)
-          begin
-            bytes_read, addr = socket.receive(buffer)
-            ip_addr = addr.as(Socket::IPAddress)
-            Value::Context.new([
-              Value::Context.new(buffer[0, bytes_read]),
-              Value::Context.new(ip_addr.address),
-              Value::Context.new(ip_addr.port.to_i64),
-            ] of Value::Context)
-          rescue ex : IO::Error
-            Value::Context.new([
-              Value::Context.new(:error),
-              Value::Context.new(ex.message || "receive failed"),
-            ] of Value::Context)
-          end
-        end
-
-        engine.register_built_in_function("UDP", "receiveFromTimeout", 3) do |_engine, _process, arguments|
-          socket = Box(UDPSocket).unbox(arguments[2].pointer)
-          max = arguments[1].to_i64.to_i32
-          timeout_ms = arguments[0].to_i64.to_i32
-          buffer = Bytes.new(max)
-          begin
-            socket.read_timeout = timeout_ms.milliseconds
-            bytes_read, addr = socket.receive(buffer)
-            ip_addr = addr.as(Socket::IPAddress)
-            Value::Context.new([
-              Value::Context.new(String.new(buffer[0, bytes_read])),
-              Value::Context.new(ip_addr.address),
-              Value::Context.new(ip_addr.port.to_i64),
-            ] of Value::Context)
-          rescue IO::TimeoutError
-            Value::Context.new(:timeout)
-          rescue ex : IO::Error
-            Value::Context.new([
-              Value::Context.new(:error),
-              Value::Context.new(ex.message || "receive failed"),
-            ] of Value::Context)
-          ensure
-            socket.read_timeout = nil
-          end
-        end
-
         engine.register_built_in_function("UDP", "connect", 3) do |_engine, _process, arguments|
           socket = Box(UDPSocket).unbox(arguments[2].pointer)
           host = arguments[1].to_s
           port = arguments[0].to_i64.to_i32
           socket.connect(host, port)
           Value::Context.new(:okay)
-        end
-
-        engine.register_built_in_function("UDP", "send", 2) do |_engine, _process, arguments|
-          socket = Box(UDPSocket).unbox(arguments.last.pointer)
-          data = arguments.first.to_s
-          begin
-            socket.write(data.to_slice)
-            Value::Context.new(:okay)
-          rescue ex : IO::Error
-            Value::Context.new([
-              Value::Context.new(:error),
-              Value::Context.new(ex.message || "send failed"),
-            ] of Value::Context)
-          end
-        end
-
-        engine.register_built_in_function("UDP", "receive", 2) do |_engine, _process, arguments|
-          socket = Box(UDPSocket).unbox(arguments.last.pointer)
-          max = arguments.first.to_i64.to_i32
-          buffer = Bytes.new(max)
-          begin
-            bytes_read = socket.read(buffer)
-            Value::Context.new(String.new(buffer[0, bytes_read]))
-          rescue ex : IO::Error
-            Value::Context.new([
-              Value::Context.new(:error),
-              Value::Context.new(ex.message || "receive failed"),
-            ] of Value::Context)
-          end
         end
 
         engine.register_built_in_function("UDP", "setBroadcast", 2) do |_engine, _process, arguments|
@@ -1189,9 +1181,212 @@ module X
             Value::Context.new(true)
           end
         end
+
+        # Async (blocking I/O in fibers)
+
+        engine.register_built_in_function("UDP", "sendTo", 4) do |engine, process, arguments|
+          socket = Box(UDPSocket).unbox(arguments[3].pointer)
+          host = arguments[2].to_s
+          port = arguments[1].to_i64.to_i32
+          data = arguments[0].to_s
+
+          process.state = Process::State::WAITING
+          process.waiting_for = Value::Context.new(:io)
+          process.waiting_since = Time.utc
+
+          spawn do
+            begin
+              socket.send(data, Socket::IPAddress.new(host, port))
+              process.stack.push(Value::Context.new(:okay))
+            rescue ex
+              process.stack.push(Value::Context.new([
+                Value::Context.new(:error),
+                Value::Context.new(ex.message || "send failed"),
+              ] of Value::Context))
+            end
+            engine.queue_process_for_reactivation(process)
+          end
+
+          Value::Context.null
+        end
+
+        engine.register_built_in_function("UDP", "sendToBinary", 4) do |engine, process, arguments|
+          socket = Box(UDPSocket).unbox(arguments[3].pointer)
+          host = arguments[2].to_s
+          port = arguments[1].to_i64.to_i32
+          data = arguments[0].to_binary
+
+          process.state = Process::State::WAITING
+          process.waiting_for = Value::Context.new(:io)
+          process.waiting_since = Time.utc
+
+          spawn do
+            begin
+              socket.send(data, Socket::IPAddress.new(host, port))
+              process.stack.push(Value::Context.new(:okay))
+            rescue ex
+              process.stack.push(Value::Context.new([
+                Value::Context.new(:error),
+                Value::Context.new(ex.message || "send failed"),
+              ] of Value::Context))
+            end
+            engine.queue_process_for_reactivation(process)
+          end
+
+          Value::Context.null
+        end
+
+        engine.register_built_in_function("UDP", "send", 2) do |engine, process, arguments|
+          socket = Box(UDPSocket).unbox(arguments.last.pointer)
+          data = arguments.first.to_s
+
+          process.state = Process::State::WAITING
+          process.waiting_for = Value::Context.new(:io)
+          process.waiting_since = Time.utc
+
+          spawn do
+            begin
+              socket.write(data.to_slice)
+              process.stack.push(Value::Context.new(:okay))
+            rescue ex
+              process.stack.push(Value::Context.new([
+                Value::Context.new(:error),
+                Value::Context.new(ex.message || "send failed"),
+              ] of Value::Context))
+            end
+            engine.queue_process_for_reactivation(process)
+          end
+
+          Value::Context.null
+        end
+
+        engine.register_built_in_function("UDP", "receive", 2) do |engine, process, arguments|
+          socket = Box(UDPSocket).unbox(arguments.last.pointer)
+          max = arguments.first.to_i64.to_i32
+
+          process.state = Process::State::WAITING
+          process.waiting_for = Value::Context.new(:io)
+          process.waiting_since = Time.utc
+
+          spawn do
+            begin
+              buffer = Bytes.new(max)
+              bytes_read = socket.read(buffer)
+              process.stack.push(Value::Context.new(String.new(buffer[0, bytes_read])))
+            rescue ex
+              process.stack.push(Value::Context.new([
+                Value::Context.new(:error),
+                Value::Context.new(ex.message || "receive failed"),
+              ] of Value::Context))
+            end
+            engine.queue_process_for_reactivation(process)
+          end
+
+          Value::Context.null
+        end
+
+        engine.register_built_in_function("UDP", "receiveFrom", 2) do |engine, process, arguments|
+          socket = Box(UDPSocket).unbox(arguments.last.pointer)
+          max = arguments.first.to_i64.to_i32
+
+          process.state = Process::State::WAITING
+          process.waiting_for = Value::Context.new(:io)
+          process.waiting_since = Time.utc
+
+          spawn do
+            begin
+              buffer = Bytes.new(max)
+              bytes_read, addr = socket.receive(buffer)
+              ip_addr = addr.as(Socket::IPAddress)
+              process.stack.push(Value::Context.new([
+                Value::Context.new(String.new(buffer[0, bytes_read])),
+                Value::Context.new(ip_addr.address),
+                Value::Context.new(ip_addr.port.to_i64),
+              ] of Value::Context))
+            rescue ex
+              process.stack.push(Value::Context.new([
+                Value::Context.new(:error),
+                Value::Context.new(ex.message || "receive failed"),
+              ] of Value::Context))
+            end
+            engine.queue_process_for_reactivation(process)
+          end
+
+          Value::Context.null
+        end
+
+        engine.register_built_in_function("UDP", "receiveFromBinary", 2) do |engine, process, arguments|
+          socket = Box(UDPSocket).unbox(arguments.last.pointer)
+          max = arguments.first.to_i64.to_i32
+
+          process.state = Process::State::WAITING
+          process.waiting_for = Value::Context.new(:io)
+          process.waiting_since = Time.utc
+
+          spawn do
+            begin
+              buffer = Bytes.new(max)
+              bytes_read, addr = socket.receive(buffer)
+              ip_addr = addr.as(Socket::IPAddress)
+              process.stack.push(Value::Context.new([
+                Value::Context.new(buffer[0, bytes_read]),
+                Value::Context.new(ip_addr.address),
+                Value::Context.new(ip_addr.port.to_i64),
+              ] of Value::Context))
+            rescue ex
+              process.stack.push(Value::Context.new([
+                Value::Context.new(:error),
+                Value::Context.new(ex.message || "receive failed"),
+              ] of Value::Context))
+            end
+            engine.queue_process_for_reactivation(process)
+          end
+
+          Value::Context.null
+        end
+
+        engine.register_built_in_function("UDP", "receiveFromTimeout", 3) do |engine, process, arguments|
+          socket = Box(UDPSocket).unbox(arguments[2].pointer)
+          max = arguments[1].to_i64.to_i32
+          timeout_ms = arguments[0].to_i64.to_i32
+
+          process.state = Process::State::WAITING
+          process.waiting_for = Value::Context.new(:io)
+          process.waiting_since = Time.utc
+
+          spawn do
+            begin
+              socket.read_timeout = timeout_ms.milliseconds
+              buffer = Bytes.new(max)
+              bytes_read, addr = socket.receive(buffer)
+              ip_addr = addr.as(Socket::IPAddress)
+              process.stack.push(Value::Context.new([
+                Value::Context.new(String.new(buffer[0, bytes_read])),
+                Value::Context.new(ip_addr.address),
+                Value::Context.new(ip_addr.port.to_i64),
+              ] of Value::Context))
+            rescue IO::TimeoutError
+              process.stack.push(Value::Context.new(:timeout))
+            rescue ex
+              process.stack.push(Value::Context.new([
+                Value::Context.new(:error),
+                Value::Context.new(ex.message || "receive failed"),
+              ] of Value::Context))
+            ensure
+              socket.read_timeout = nil
+            end
+            engine.queue_process_for_reactivation(process)
+          end
+
+          Value::Context.null
+        end
       end
 
+      # Unix - Async I/O
+
       private def self.register_unix(engine : Engine::Context)
+        # Non-blocking (synchronous)
+
         engine.register_built_in_function("Unix", "listen", 1) do |_engine, _process, arguments|
           path = arguments.first.to_s
           server = UNIXServer.new(path)
@@ -1203,158 +1398,6 @@ module X
           backlog = arguments.first.to_i64.to_i32
           server = UNIXServer.new(path, backlog: backlog)
           Value::Context.new(server)
-        end
-
-        engine.register_built_in_function("Unix", "accept", 1) do |_engine, _process, arguments|
-          server = Box(UNIXServer).unbox(arguments.first.pointer)
-          client = server.accept
-          client.sync = false
-          Value::Context.new(client)
-        end
-
-        engine.register_built_in_function("Unix", "acceptTimeout", 2) do |_engine, _process, arguments|
-          server = Box(UNIXServer).unbox(arguments.last.pointer)
-          timeout_ms = arguments.first.to_i64.to_i32
-          server.read_timeout = timeout_ms.milliseconds
-          begin
-            client = server.accept
-            client.sync = false
-            Value::Context.new(client)
-          rescue IO::TimeoutError
-            Value::Context.new(:timeout)
-          ensure
-            server.read_timeout = nil
-          end
-        end
-
-        engine.register_built_in_function("Unix", "connect", 1) do |_engine, _process, arguments|
-          path = arguments.first.to_s
-          socket = UNIXSocket.new(path)
-          socket.sync = false
-          Value::Context.new(socket)
-        end
-
-        engine.register_built_in_function("Unix", "send", 2) do |_engine, _process, arguments|
-          socket = Box(UNIXSocket).unbox(arguments.last.pointer)
-          data = arguments.first.to_s
-          begin
-            socket.write(data.to_slice)
-            Value::Context.new(:okay)
-          rescue ex : IO::Error
-            Value::Context.new([
-              Value::Context.new(:error),
-              Value::Context.new(ex.message || "write failed"),
-            ] of Value::Context)
-          end
-        end
-
-        engine.register_built_in_function("Unix", "sendBinary", 2) do |_engine, _process, arguments|
-          socket = Box(UNIXSocket).unbox(arguments.last.pointer)
-          data = arguments.first.to_binary
-          begin
-            socket.write(data)
-            Value::Context.new(:okay)
-          rescue ex : IO::Error
-            Value::Context.new([
-              Value::Context.new(:error),
-              Value::Context.new(ex.message || "write failed"),
-            ] of Value::Context)
-          end
-        end
-
-        engine.register_built_in_function("Unix", "receive", 2) do |_engine, _process, arguments|
-          socket = Box(UNIXSocket).unbox(arguments.last.pointer)
-          max = arguments.first.to_i64.to_i32
-          buffer = Bytes.new(max)
-          begin
-            bytes_read = socket.read(buffer)
-            if bytes_read == 0
-              Value::Context.new(:closed)
-            else
-              Value::Context.new(String.new(buffer[0, bytes_read]))
-            end
-          rescue ex : IO::Error
-            Value::Context.new([
-              Value::Context.new(:error),
-              Value::Context.new(ex.message || "read failed"),
-            ] of Value::Context)
-          end
-        end
-
-        engine.register_built_in_function("Unix", "receiveBinary", 2) do |_engine, _process, arguments|
-          socket = Box(UNIXSocket).unbox(arguments.last.pointer)
-          max = arguments.first.to_i64.to_i32
-          buffer = Bytes.new(max)
-          begin
-            bytes_read = socket.read(buffer)
-            if bytes_read == 0
-              Value::Context.new(:closed)
-            else
-              Value::Context.new(buffer[0, bytes_read])
-            end
-          rescue ex : IO::Error
-            Value::Context.new([
-              Value::Context.new(:error),
-              Value::Context.new(ex.message || "read failed"),
-            ] of Value::Context)
-          end
-        end
-
-        engine.register_built_in_function("Unix", "receiveTimeout", 3) do |_engine, _process, arguments|
-          socket = Box(UNIXSocket).unbox(arguments[2].pointer)
-          max = arguments[1].to_i64.to_i32
-          timeout_ms = arguments[0].to_i64.to_i32
-          buffer = Bytes.new(max)
-          begin
-            socket.read_timeout = timeout_ms.milliseconds
-            bytes_read = socket.read(buffer)
-            if bytes_read == 0
-              Value::Context.new(:closed)
-            else
-              Value::Context.new(String.new(buffer[0, bytes_read]))
-            end
-          rescue IO::TimeoutError
-            Value::Context.new(:timeout)
-          rescue ex : IO::Error
-            Value::Context.new([
-              Value::Context.new(:error),
-              Value::Context.new(ex.message || "read failed"),
-            ] of Value::Context)
-          ensure
-            socket.read_timeout = nil
-          end
-        end
-
-        engine.register_built_in_function("Unix", "receiveLine", 2) do |_engine, _process, arguments|
-          socket = Box(UNIXSocket).unbox(arguments.last.pointer)
-          max = arguments.first.to_i64.to_i32
-          begin
-            line = socket.gets(max)
-            if line.nil?
-              Value::Context.new(:closed)
-            else
-              Value::Context.new(line)
-            end
-          rescue ex : IO::Error
-            Value::Context.new([
-              Value::Context.new(:error),
-              Value::Context.new(ex.message || "read failed"),
-            ] of Value::Context)
-          end
-        end
-
-        engine.register_built_in_function("Unix", "sendFileDescriptor", 2) do |_engine, _process, _arguments|
-          Value::Context.new([
-            Value::Context.new(:error),
-            Value::Context.new("sendFileDescriptor not supported"),
-          ] of Value::Context)
-        end
-
-        engine.register_built_in_function("Unix", "receiveFileDescriptor", 1) do |_engine, _process, _arguments|
-          Value::Context.new([
-            Value::Context.new(:error),
-            Value::Context.new("recvFileDescriptor not supported"),
-          ] of Value::Context)
         end
 
         engine.register_built_in_function("Unix", "close", 1) do |_engine, _process, arguments|
@@ -1428,53 +1471,339 @@ module X
             end
           end
         end
-      end
 
-      private def self.register_socket(engine : Engine::Context)
-        engine.register_built_in_function("Socket", "resolve", 1) do |_engine, _process, arguments|
-          hostname = arguments.first.to_s
-          begin
-            addrs = Socket::Addrinfo.resolve(hostname, "http", type: Socket::Type::STREAM)
-            results = addrs.map do |addr|
-              Value::Context.new(addr.ip_address.address).as(Value::Context)
-            end
-            Value::Context.new(results)
-          rescue ex
-            Value::Context.new([
-              Value::Context.new(:error),
-              Value::Context.new(ex.message || "resolve failed"),
-            ] of Value::Context)
-          end
+        engine.register_built_in_function("Unix", "sendFileDescriptor", 2) do |_engine, _process, _arguments|
+          Value::Context.new([
+            Value::Context.new(:error),
+            Value::Context.new("sendFileDescriptor not supported"),
+          ] of Value::Context)
         end
 
-        engine.register_built_in_function("Socket", "resolveAll", 3) do |_engine, _process, arguments|
+        engine.register_built_in_function("Unix", "receiveFileDescriptor", 1) do |_engine, _process, _arguments|
+          Value::Context.new([
+            Value::Context.new(:error),
+            Value::Context.new("recvFileDescriptor not supported"),
+          ] of Value::Context)
+        end
+
+        # Async (blocking I/O in fibers)
+
+        engine.register_built_in_function("Unix", "accept", 1) do |engine, process, arguments|
+          server = Box(UNIXServer).unbox(arguments.first.pointer)
+
+          process.state = Process::State::WAITING
+          process.waiting_for = Value::Context.new(:io)
+          process.waiting_since = Time.utc
+
+          spawn do
+            begin
+              client = server.accept
+              client.sync = false
+              process.stack.push(Value::Context.new(client))
+            rescue ex
+              process.stack.push(Value::Context.new([
+                Value::Context.new(:error),
+                Value::Context.new(ex.message || "accept failed"),
+              ] of Value::Context))
+            end
+            engine.queue_process_for_reactivation(process)
+          end
+
+          Value::Context.null
+        end
+
+        engine.register_built_in_function("Unix", "acceptTimeout", 2) do |engine, process, arguments|
+          server = Box(UNIXServer).unbox(arguments.last.pointer)
+          timeout_ms = arguments.first.to_i64.to_i32
+
+          process.state = Process::State::WAITING
+          process.waiting_for = Value::Context.new(:io)
+          process.waiting_since = Time.utc
+
+          spawn do
+            begin
+              server.read_timeout = timeout_ms.milliseconds
+              client = server.accept
+              client.sync = false
+              process.stack.push(Value::Context.new(client))
+            rescue IO::TimeoutError
+              process.stack.push(Value::Context.new(:timeout))
+            rescue ex
+              process.stack.push(Value::Context.new([
+                Value::Context.new(:error),
+                Value::Context.new(ex.message || "accept failed"),
+              ] of Value::Context))
+            ensure
+              server.read_timeout = nil
+            end
+            engine.queue_process_for_reactivation(process)
+          end
+
+          Value::Context.null
+        end
+
+        engine.register_built_in_function("Unix", "connect", 1) do |engine, process, arguments|
+          path = arguments.first.to_s
+
+          process.state = Process::State::WAITING
+          process.waiting_for = Value::Context.new(:io)
+          process.waiting_since = Time.utc
+
+          spawn do
+            begin
+              socket = UNIXSocket.new(path)
+              socket.sync = false
+              process.stack.push(Value::Context.new(socket))
+            rescue ex
+              process.stack.push(Value::Context.new([
+                Value::Context.new(:error),
+                Value::Context.new(ex.message || "connect failed"),
+              ] of Value::Context))
+            end
+            engine.queue_process_for_reactivation(process)
+          end
+
+          Value::Context.null
+        end
+
+        engine.register_built_in_function("Unix", "send", 2) do |engine, process, arguments|
+          socket = Box(UNIXSocket).unbox(arguments.last.pointer)
+          data = arguments.first.to_s
+
+          process.state = Process::State::WAITING
+          process.waiting_for = Value::Context.new(:io)
+          process.waiting_since = Time.utc
+
+          spawn do
+            begin
+              socket.write(data.to_slice)
+              process.stack.push(Value::Context.new(:okay))
+            rescue ex
+              process.stack.push(Value::Context.new([
+                Value::Context.new(:error),
+                Value::Context.new(ex.message || "write failed"),
+              ] of Value::Context))
+            end
+            engine.queue_process_for_reactivation(process)
+          end
+
+          Value::Context.null
+        end
+
+        engine.register_built_in_function("Unix", "sendBinary", 2) do |engine, process, arguments|
+          socket = Box(UNIXSocket).unbox(arguments.last.pointer)
+          data = arguments.first.to_binary
+
+          process.state = Process::State::WAITING
+          process.waiting_for = Value::Context.new(:io)
+          process.waiting_since = Time.utc
+
+          spawn do
+            begin
+              socket.write(data)
+              process.stack.push(Value::Context.new(:okay))
+            rescue ex
+              process.stack.push(Value::Context.new([
+                Value::Context.new(:error),
+                Value::Context.new(ex.message || "write failed"),
+              ] of Value::Context))
+            end
+            engine.queue_process_for_reactivation(process)
+          end
+
+          Value::Context.null
+        end
+
+        engine.register_built_in_function("Unix", "receive", 2) do |engine, process, arguments|
+          socket = Box(UNIXSocket).unbox(arguments.last.pointer)
+          max = arguments.first.to_i64.to_i32
+
+          process.state = Process::State::WAITING
+          process.waiting_for = Value::Context.new(:io)
+          process.waiting_since = Time.utc
+
+          spawn do
+            begin
+              buffer = Bytes.new(max)
+              bytes_read = socket.read(buffer)
+              if bytes_read == 0
+                process.stack.push(Value::Context.new(:closed))
+              else
+                process.stack.push(Value::Context.new(String.new(buffer[0, bytes_read])))
+              end
+            rescue ex
+              process.stack.push(Value::Context.new([
+                Value::Context.new(:error),
+                Value::Context.new(ex.message || "read failed"),
+              ] of Value::Context))
+            end
+            engine.queue_process_for_reactivation(process)
+          end
+
+          Value::Context.null
+        end
+
+        engine.register_built_in_function("Unix", "receiveBinary", 2) do |engine, process, arguments|
+          socket = Box(UNIXSocket).unbox(arguments.last.pointer)
+          max = arguments.first.to_i64.to_i32
+
+          process.state = Process::State::WAITING
+          process.waiting_for = Value::Context.new(:io)
+          process.waiting_since = Time.utc
+
+          spawn do
+            begin
+              buffer = Bytes.new(max)
+              bytes_read = socket.read(buffer)
+              if bytes_read == 0
+                process.stack.push(Value::Context.new(:closed))
+              else
+                process.stack.push(Value::Context.new(buffer[0, bytes_read]))
+              end
+            rescue ex
+              process.stack.push(Value::Context.new([
+                Value::Context.new(:error),
+                Value::Context.new(ex.message || "read failed"),
+              ] of Value::Context))
+            end
+            engine.queue_process_for_reactivation(process)
+          end
+
+          Value::Context.null
+        end
+
+        engine.register_built_in_function("Unix", "receiveTimeout", 3) do |engine, process, arguments|
+          socket = Box(UNIXSocket).unbox(arguments[2].pointer)
+          max = arguments[1].to_i64.to_i32
+          timeout_ms = arguments[0].to_i64.to_i32
+
+          process.state = Process::State::WAITING
+          process.waiting_for = Value::Context.new(:io)
+          process.waiting_since = Time.utc
+
+          spawn do
+            begin
+              socket.read_timeout = timeout_ms.milliseconds
+              buffer = Bytes.new(max)
+              bytes_read = socket.read(buffer)
+              if bytes_read == 0
+                process.stack.push(Value::Context.new(:closed))
+              else
+                process.stack.push(Value::Context.new(String.new(buffer[0, bytes_read])))
+              end
+            rescue IO::TimeoutError
+              process.stack.push(Value::Context.new(:timeout))
+            rescue ex
+              process.stack.push(Value::Context.new([
+                Value::Context.new(:error),
+                Value::Context.new(ex.message || "read failed"),
+              ] of Value::Context))
+            ensure
+              socket.read_timeout = nil
+            end
+            engine.queue_process_for_reactivation(process)
+          end
+
+          Value::Context.null
+        end
+
+        engine.register_built_in_function("Unix", "receiveLine", 2) do |engine, process, arguments|
+          socket = Box(UNIXSocket).unbox(arguments.last.pointer)
+          max = arguments.first.to_i64.to_i32
+
+          process.state = Process::State::WAITING
+          process.waiting_for = Value::Context.new(:io)
+          process.waiting_since = Time.utc
+
+          spawn do
+            begin
+              line = socket.gets(max)
+              if line.nil?
+                process.stack.push(Value::Context.new(:closed))
+              else
+                process.stack.push(Value::Context.new(line))
+              end
+            rescue ex
+              process.stack.push(Value::Context.new([
+                Value::Context.new(:error),
+                Value::Context.new(ex.message || "read failed"),
+              ] of Value::Context))
+            end
+            engine.queue_process_for_reactivation(process)
+          end
+
+          Value::Context.null
+        end
+      end
+
+      # Socket - Async DNS resolution
+
+      private def self.register_socket(engine : Engine::Context)
+        engine.register_built_in_function("Socket", "resolve", 1) do |engine, process, arguments|
+          hostname = arguments.first.to_s
+
+          process.state = Process::State::WAITING
+          process.waiting_for = Value::Context.new(:io)
+          process.waiting_since = Time.utc
+
+          spawn do
+            begin
+              addrs = Socket::Addrinfo.resolve(hostname, "http", type: Socket::Type::STREAM)
+              results = addrs.map do |addr|
+                Value::Context.new(addr.ip_address.address).as(Value::Context)
+              end
+              process.stack.push(Value::Context.new(results))
+            rescue ex
+              process.stack.push(Value::Context.new([
+                Value::Context.new(:error),
+                Value::Context.new(ex.message || "resolve failed"),
+              ] of Value::Context))
+            end
+            engine.queue_process_for_reactivation(process)
+          end
+
+          Value::Context.null
+        end
+
+        engine.register_built_in_function("Socket", "resolveAll", 3) do |engine, process, arguments|
           hostname = arguments[2].to_s
           service = arguments[1].to_s
           family_str = arguments[0].to_s
-          family = case family_str
-                   when "ipv4" then Socket::Family::INET
-                   when "ipv6" then Socket::Family::INET6
-                   else             Socket::Family::UNSPEC
-                   end
-          begin
-            addrs = Socket::Addrinfo.resolve(hostname, service, family: family, type: Socket::Type::STREAM)
-            results = addrs.map do |addr|
-              ip = addr.ip_address
-              Value::Context.new([
-                Value::Context.new(ip.address),
-                Value::Context.new(ip.port.to_i64),
-                Value::Context.new(ip.family == Socket::Family::INET6 ? "ipv6" : "ipv4"),
-              ] of Value::Context).as(Value::Context)
+
+          process.state = Process::State::WAITING
+          process.waiting_for = Value::Context.new(:io)
+          process.waiting_since = Time.utc
+
+          spawn do
+            begin
+              family = case family_str
+                       when "ipv4" then Socket::Family::INET
+                       when "ipv6" then Socket::Family::INET6
+                       else             Socket::Family::UNSPEC
+                       end
+              addrs = Socket::Addrinfo.resolve(hostname, service, family: family, type: Socket::Type::STREAM)
+              results = addrs.map do |addr|
+                ip = addr.ip_address
+                Value::Context.new([
+                  Value::Context.new(ip.address),
+                  Value::Context.new(ip.port.to_i64),
+                  Value::Context.new(ip.family == Socket::Family::INET6 ? "ipv6" : "ipv4"),
+                ] of Value::Context).as(Value::Context)
+              end
+              process.stack.push(Value::Context.new(results))
+            rescue ex
+              process.stack.push(Value::Context.new([
+                Value::Context.new(:error),
+                Value::Context.new(ex.message || "resolve failed"),
+              ] of Value::Context))
             end
-            Value::Context.new(results)
-          rescue ex
-            Value::Context.new([
-              Value::Context.new(:error),
-              Value::Context.new(ex.message || "resolve failed"),
-            ] of Value::Context)
+            engine.queue_process_for_reactivation(process)
           end
+
+          Value::Context.null
         end
 
+        # These are instant (no blocking I/O)
         engine.register_built_in_function("Socket", "parseIpAddress", 2) do |_engine, _process, arguments|
           address = arguments.last.to_s
           port = arguments.first.to_i64.to_i32
