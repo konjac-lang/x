@@ -41,8 +41,8 @@
 
   ; Trigger reload — push module name and file path
   ; In a real system this would come from a message or file watcher
-  push "Dynamic.Configuration" ; module name
   push "Dynamic.Configuration.v2" ; file hint
+  push "Dynamic.Configuration" ; module name
   reload
 
   push "Reload complete!"

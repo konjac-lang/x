@@ -115,9 +115,9 @@ module X
         end
 
         engine.register_built_in_function("String", "split", 2) do |_engine, _process, arguments|
-          str = arguments.last.to_s
+          string = arguments.last.to_s
           delimiter = arguments.first.to_s
-          parts = str.split(delimiter)
+          parts = string.split(delimiter)
           Value::Context.new(parts.map { |p| Value::Context.new(p).as(Value::Context) })
         end
 
@@ -128,28 +128,28 @@ module X
         end
 
         engine.register_built_in_function("String", "contains", 2) do |_engine, _process, arguments|
-          str = arguments.last.to_s
+          string = arguments.last.to_s
           needle = arguments.first.to_s
-          Value::Context.new(str.includes?(needle))
+          Value::Context.new(string.includes?(needle))
         end
 
         engine.register_built_in_function("String", "startsWith", 2) do |_engine, _process, arguments|
-          str = arguments.last.to_s
+          string = arguments.last.to_s
           prefix = arguments.first.to_s
-          Value::Context.new(str.starts_with?(prefix))
+          Value::Context.new(string.starts_with?(prefix))
         end
 
         engine.register_built_in_function("String", "endsWith", 2) do |_engine, _process, arguments|
-          str = arguments.last.to_s
+          string = arguments.last.to_s
           suffix = arguments.first.to_s
-          Value::Context.new(str.ends_with?(suffix))
+          Value::Context.new(string.ends_with?(suffix))
         end
 
         engine.register_built_in_function("String", "replace", 3) do |_engine, _process, arguments|
-          str = arguments[2].to_s
+          string = arguments[2].to_s
           pattern = arguments[1].to_s
           replacement = arguments[0].to_s
-          Value::Context.new(str.gsub(pattern, replacement))
+          Value::Context.new(string.gsub(pattern, replacement))
         end
 
         engine.register_built_in_function("String", "slice", 3) do |_engine, _process, arguments|
@@ -872,8 +872,8 @@ module X
         end
 
         engine.register_built_in_function("TCP", "send", 2) do |engine, process, arguments|
-          socket = Box(TCPSocket).unbox(arguments.first.pointer)
-          data = arguments.last.to_s
+          socket = Box(TCPSocket).unbox(arguments.last.pointer)
+          data = arguments.first.to_s
 
           process.state = Process::State::WAITING
           process.waiting_for = Value::Context.new(:io)
@@ -920,8 +920,8 @@ module X
         end
 
         engine.register_built_in_function("TCP", "receive", 2) do |engine, process, arguments|
-          socket = Box(TCPSocket).unbox(arguments.first.pointer)
-          max = arguments.last.to_i64.to_i32
+          socket = Box(TCPSocket).unbox(arguments.last.pointer)
+          max = arguments.first.to_i64.to_i32
 
           process.state = Process::State::WAITING
           process.waiting_for = Value::Context.new(:io)
@@ -1237,8 +1237,8 @@ module X
         end
 
         engine.register_built_in_function("UDP", "send", 2) do |engine, process, arguments|
-          socket = Box(UDPSocket).unbox(arguments.last.pointer)
-          data = arguments.first.to_s
+          socket = Box(UDPSocket).unbox(arguments.first.pointer)
+          data = arguments.last.to_s
 
           process.state = Process::State::WAITING
           process.waiting_for = Value::Context.new(:io)
@@ -1567,8 +1567,8 @@ module X
         end
 
         engine.register_built_in_function("Unix", "send", 2) do |engine, process, arguments|
-          socket = Box(UNIXSocket).unbox(arguments.last.pointer)
-          data = arguments.first.to_s
+          socket = Box(UNIXSocket).unbox(arguments.first.pointer)
+          data = arguments.last.to_s
 
           process.state = Process::State::WAITING
           process.waiting_for = Value::Context.new(:io)

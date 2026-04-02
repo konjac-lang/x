@@ -343,7 +343,7 @@ module X
         check_stack_size(process, arity, "CONTROL_CALL_BUILT_IN_FUNCTION")
 
         arguments = [] of Value::Context
-        arity.times { arguments.unshift(process.stack.pop) }
+        arity.times { arguments << process.stack.pop }
 
         result = @engine.call_built_in_function(process, module_name, function_name, arguments)
 

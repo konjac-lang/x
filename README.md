@@ -473,6 +473,100 @@ Press Enter to repeat the last command.
 | `Type.isLambda/1` | Check if lambda |
 | `Type.isNumeric/1` | Check if integer or float |
 
+### TCP
+
+| Function | Description |
+|----------|-------------|
+| `TCP.listen/1` | Create a TCP server on a port (binds to 0.0.0.0) |
+| `TCP.listenOn/2` | Create a TCP server on a specific address and port |
+| `TCP.listenWithBacklog/3` | Create a TCP server with custom backlog |
+| `TCP.accept/1` | Accept a client connection (async, blocks process) |
+| `TCP.acceptTimeout/2` | Accept with timeout in milliseconds |
+| `TCP.connect/2` | Connect to a host and port (async) |
+| `TCP.connectTimeout/3` | Connect with timeout in milliseconds |
+| `TCP.send/2` | Send string data over a socket (async) |
+| `TCP.sendBinary/2` | Send binary data over a socket (async) |
+| `TCP.receive/2` | Receive up to N bytes as string (async) |
+| `TCP.receiveBinary/2` | Receive up to N bytes as binary (async) |
+| `TCP.receiveTimeout/3` | Receive with timeout in milliseconds |
+| `TCP.receiveLine/2` | Read a line up to max bytes (async) |
+| `TCP.receiveExact/2` | Read exactly N bytes (async) |
+| `TCP.close/1` | Close a socket or server |
+| `TCP.isClosed/1` | Check if a socket is closed |
+| `TCP.setNodelay/2` | Enable/disable TCP_NODELAY |
+| `TCP.setKeepalive/2` | Enable/disable keepalive |
+| `TCP.setReceiveBufferSize/2` | Set receive buffer size |
+| `TCP.setSendBufferSize/2` | Set send buffer size |
+| `TCP.setReadTimeout/2` | Set read timeout in milliseconds |
+| `TCP.setWriteTimeout/2` | Set write timeout in milliseconds |
+| `TCP.clearReadTimeout/1` | Remove read timeout |
+| `TCP.clearWriteTimeout/1` | Remove write timeout |
+| `TCP.setReuseAddress/2` | Enable/disable SO_REUSEADDR |
+| `TCP.setReusePort/2` | Enable/disable SO_REUSEPORT |
+| `TCP.setLingerOption/3` | Set linger option (socket, enabled, timeout) |
+| `TCP.localAddress/1` | Get local [address, port] |
+| `TCP.remoteAddress/1` | Get remote [address, port] |
+| `TCP.shutdown/2` | Shutdown socket direction ("read", "write", or "both") |
+
+### UDP
+
+| Function | Description |
+|----------|-------------|
+| `UDP.open/1` | Open a UDP socket bound to a port |
+| `UDP.openOn/2` | Open a UDP socket bound to address and port |
+| `UDP.openUnbound/0` | Open an unbound UDP socket |
+| `UDP.connect/3` | Connect a UDP socket to a remote host and port |
+| `UDP.send/2` | Send string data on a connected socket (async) |
+| `UDP.sendTo/4` | Send string data to a specific host and port (async) |
+| `UDP.sendToBinary/4` | Send binary data to a specific host and port (async) |
+| `UDP.receive/2` | Receive up to N bytes as string (async) |
+| `UDP.receiveFrom/2` | Receive data with sender [data, address, port] (async) |
+| `UDP.receiveFromBinary/2` | Receive binary data with sender info (async) |
+| `UDP.receiveFromTimeout/3` | Receive with sender info and timeout (async) |
+| `UDP.close/1` | Close a UDP socket |
+| `UDP.isClosed/1` | Check if socket is closed |
+| `UDP.setBroadcast/2` | Enable/disable broadcast |
+| `UDP.setReceiveBufferSize/2` | Set receive buffer size |
+| `UDP.setSendBufferSize/2` | Set send buffer size |
+| `UDP.joinMulticastGroup/2` | Join a multicast group |
+| `UDP.leaveMulticastGroup/2` | Leave a multicast group |
+| `UDP.setMulticastLoopback/2` | Enable/disable multicast loopback |
+| `UDP.setMulticastHops/2` | Set multicast TTL/hops |
+| `UDP.localAddress/1` | Get local [address, port] |
+
+### Unix
+
+| Function | Description |
+|----------|-------------|
+| `Unix.listen/1` | Create a Unix domain socket server at a path |
+| `Unix.listenWithBacklog/2` | Create server with custom backlog |
+| `Unix.accept/1` | Accept a client connection (async) |
+| `Unix.acceptTimeout/2` | Accept with timeout in milliseconds |
+| `Unix.connect/1` | Connect to a Unix socket path (async) |
+| `Unix.send/2` | Send string data (async) |
+| `Unix.sendBinary/2` | Send binary data (async) |
+| `Unix.receive/2` | Receive up to N bytes as string (async) |
+| `Unix.receiveBinary/2` | Receive up to N bytes as binary (async) |
+| `Unix.receiveTimeout/3` | Receive with timeout in milliseconds |
+| `Unix.receiveLine/2` | Read a line up to max bytes (async) |
+| `Unix.close/1` | Close a socket or server |
+| `Unix.isClosed/1` | Check if closed |
+| `Unix.unlink/1` | Delete the socket file from disk |
+| `Unix.setReadTimeout/2` | Set read timeout in milliseconds |
+| `Unix.setWriteTimeout/2` | Set write timeout in milliseconds |
+| `Unix.clearReadTimeout/1` | Remove read timeout |
+| `Unix.clearWriteTimeout/1` | Remove write timeout |
+| `Unix.path/1` | Get the socket file path |
+
+### Socket
+
+| Function | Description |
+|----------|-------------|
+| `Socket.resolve/1` | Resolve hostname to list of IP addresses (async) |
+| `Socket.resolveAll/3` | Resolve with service and family filter ("ipv4", "ipv6", "any") (async) |
+| `Socket.parseIpAddress/2` | Parse an IP address string and port into [address, port, family] |
+| `Socket.isValidIp/1` | Check if a string is a valid IP address |
+
 ## Instruction Set Reference
 
 ### Stack Operations

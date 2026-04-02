@@ -30,11 +30,10 @@
     push 0
     eq
     if
-      load messageCount
       push "Stats: "
+      load messageCount
       call String.concatenate/2
       push " messages processed"
-      swap
       call String.concatenate/2
       call Chat.Format.systemMessage/1
       call IO.printLine/1
@@ -48,11 +47,10 @@
       call Chat.Format.separator/1
       call IO.printLine/1
 
-      load messageCount
       push "Final stats: "
+      load messageCount
       call String.concatenate/2
       push " total messages"
-      swap
       call String.concatenate/2
       call Chat.Format.systemMessage/1
       call IO.printLine/1

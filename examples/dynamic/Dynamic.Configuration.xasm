@@ -17,10 +17,10 @@
 .subroutine greeting
   .local name
   store name
-  load name
   push "Hello, "
+  load name
   call String.concatenate/2
-  push "! Welcome to v1."
+  push "! Welcome to v1. "
   swap
   call String.concatenate/2
   return

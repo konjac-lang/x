@@ -1,0 +1,225 @@
+.module HTTP.Server
+
+.import IO.printLine/1
+.import TCP.listen/1
+.import TCP.accept/1
+.import TCP.receive/2
+.import TCP.send/2
+.import TCP.close/1
+.import String.concatenate/2
+.import String.split/2
+.import String.contains/2
+.import String.length/1
+.import Integer.toString/1
+.import Type.of/1
+.import Array.first/1
+.import Array.at/2
+
+.process main
+  .local server
+
+  push 8080
+  call TCP.listen/1
+  store server
+
+  push "HTTP server listening on port 8080"
+  call IO.printLine/1
+
+  loop
+    load server
+    call TCP.accept/1
+
+    spawn_link
+      .local client
+      .local request
+      .local lines
+      .local request_line
+      .local parts
+      .local method
+      .local path
+      .local body
+      .local content_length
+      .local response
+
+      store client
+
+      ; Read the request
+      load client
+      push 8192
+      call TCP.receive/2
+
+      ; Check for closed or error
+      dup
+      push :closed
+      eq
+      if
+        pop
+        load client
+        call TCP.close/1
+        pop
+        push :normal
+        exit
+      end
+
+      dup
+      call Type.of/1
+      push "Array"
+      eq
+      if
+        pop
+        load client
+        call TCP.close/1
+        pop
+        push :normal
+        exit
+      end
+
+      store request
+
+      ; Parse the request line (e.g. "GET / HTTP/1.1")
+      load request
+      push "\r\n"
+      call String.split/2
+      store lines
+
+      load lines
+      call Array.first/1
+      store request_line
+
+      ; Split request line by space to get [method, path, version]
+      load request_line
+      push " "
+      call String.split/2
+      store parts
+
+      ; Extract method and path
+      load parts
+      push 0
+      call Array.at/2
+      store method
+
+      load parts
+      push 1
+      call Array.at/2
+      store path
+
+      ; Log the request
+      load method
+      push " "
+      call String.concatenate/2
+      load path
+      call String.concatenate/2
+      call IO.printLine/1
+
+      ; Route: GET /
+      load path
+      push "/"
+      eq
+      load method
+      push "GET"
+      eq
+      and
+      if
+        push "<h1>Welcome</h1><p>X VM HTTP Server</p>"
+        store body
+
+        load body
+        call String.length/1
+        call Integer.toString/1
+        store content_length
+
+        push "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: "
+        load content_length
+        call String.concatenate/2
+        push "\r\nConnection: close\r\n\r\n"
+        call String.concatenate/2
+        load body
+        call String.concatenate/2
+        store response
+
+        load client
+        load response
+        call TCP.send/2
+        pop
+
+        load client
+        call TCP.close/1
+        pop
+
+        push :normal
+        exit
+      end
+
+      ; Route: GET /health
+      load path
+      push "/health"
+      eq
+      load method
+      push "GET"
+      eq
+      and
+      if
+        push "{\"status\":\"ok\"}"
+        store body
+
+        load body
+        call String.length/1
+        call Integer.toString/1
+        store content_length
+
+        push "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: "
+        load content_length
+        call String.concatenate/2
+        push "\r\nConnection: close\r\n\r\n"
+        call String.concatenate/2
+        load body
+        call String.concatenate/2
+        store response
+
+        load client
+        load response
+        call TCP.send/2
+        pop
+
+        load client
+        call TCP.close/1
+        pop
+
+        push :normal
+        exit
+      end
+
+      ; 404 fallback
+      push "<h1>404 Not Found</h1>"
+      store body
+
+      load body
+      call String.length/1
+      call Integer.toString/1
+      store content_length
+
+      push "HTTP/1.1 404 Not Found\r\nContent-Type: text/html\r\nContent-Length: "
+      load content_length
+      call String.concatenate/2
+      push "\r\nConnection: close\r\n\r\n"
+      call String.concatenate/2
+      load body
+      call String.concatenate/2
+      store response
+
+      load client
+      load response
+      call TCP.send/2
+      pop
+
+      load client
+      call TCP.close/1
+      pop
+
+      push :normal
+      exit
+    end
+
+    pop
+  end
+.end

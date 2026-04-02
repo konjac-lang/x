@@ -11,11 +11,10 @@
   .local username
   store text
   store username
-  push ": "
   load username
+  push ": "
   call String.concatenate/2
   load text
-  swap
   call String.concatenate/2
   return
 .end
@@ -23,11 +22,10 @@
 .subroutine systemMessage
   .local message
   store message
-  load message
   push "*** "
+  load message
   call String.concatenate/2
   push " ***"
-  swap
   call String.concatenate/2
   return
 .end
@@ -48,7 +46,6 @@
     break_if
     load result
     push "="
-    swap
     call String.concatenate/2
     store result
     load i
