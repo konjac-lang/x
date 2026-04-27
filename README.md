@@ -765,12 +765,12 @@ shards run -- examples/dynamic/Dynamic.Main.xasm
     +-------------------v---------------------+
     |            X VM Engine                   |
     |                                          |
-    | +--------+  +--------+  +--------+      |
-    | |Proc <1>|  |Proc <2>|  |Proc <N>|      |
-    | | Stack  |  | Stack  |  | Stack  |      |
-    | | Locals |  | Locals |  | Locals |      |
-    | |Mailbox |  |Mailbox |  |Mailbox |      |
-    | +--------+  +--------+  +--------+      |
+    | +--------+  +--------+  +--------+       |
+    | |Proc <1>|  |Proc <2>|  |Proc <N>|       |
+    | | Stack  |  | Stack  |  | Stack  |       |
+    | | Locals |  | Locals |  | Locals |       |
+    | |Mailbox |  |Mailbox |  |Mailbox |       |
+    | +--------+  +--------+  +--------+       |
     |                                          |
     | +--------------------------------------+ |
     | |           Scheduler                  | |
